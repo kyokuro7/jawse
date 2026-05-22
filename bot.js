@@ -90,6 +90,51 @@ function removeChannel(channelId) {
   fs.writeFileSync(channelsDB, JSON.stringify(data, null, 2));
 }
 
+const channelBlacklistDB = "./channel_blacklist.json";
+if (!fs.existsSync(channelBlacklistDB)) fs.writeFileSync(channelBlacklistDB, JSON.stringify([]));
+const userChannelsDB = "./user_channels.json";
+if (!fs.existsSync(userChannelsDB)) fs.writeFileSync(userChannelsDB, JSON.stringify({}));
+
+function getChannelBlacklist() {
+  return JSON.parse(fs.readFileSync(channelBlacklistDB));
+}
+function addChannelBlacklist(channelId) {
+  const data = getChannelBlacklist();
+  if (!data.includes(channelId)) {
+    data.push(channelId);
+    fs.writeFileSync(channelBlacklistDB, JSON.stringify(data, null, 2));
+  }
+}
+function isChannelBlacklisted(channelId) {
+  return getChannelBlacklist().includes(channelId);
+}
+function removeChannelBlacklist(channelId) {
+  let data = getChannelBlacklist();
+  data = data.filter(id => id !== channelId);
+  fs.writeFileSync(channelBlacklistDB, JSON.stringify(data, null, 2));
+}
+
+// User channel mapping: { "userId": [channelId1, channelId2] }
+function getUserChannels(userId) {
+  const data = JSON.parse(fs.readFileSync(userChannelsDB));
+  return data[userId] || [];
+}
+function addUserChannel(userId, channelId) {
+  const data = JSON.parse(fs.readFileSync(userChannelsDB));
+  if (!data[userId]) data[userId] = [];
+  if (!data[userId].includes(channelId)) {
+    data[userId].push(channelId);
+    fs.writeFileSync(userChannelsDB, JSON.stringify(data, null, 2));
+  }
+}
+function removeUserChannel(userId, channelId) {
+  const data = JSON.parse(fs.readFileSync(userChannelsDB));
+  if (data[userId]) {
+    data[userId] = data[userId].filter(id => id !== channelId);
+    fs.writeFileSync(userChannelsDB, JSON.stringify(data, null, 2));
+  }
+}
+
 // buat file database jika belum ada
 if (!fs.existsSync(premiumDB)) fs.writeFileSync(premiumDB, JSON.stringify([]));
 if (!fs.existsSync(tempPremiumDB)) fs.writeFileSync(tempPremiumDB, JSON.stringify([]));
@@ -448,7 +493,8 @@ bot.on("callback_query", async (query) => {
 /bcuser -> 𝙵𝙾𝚁𝚆𝙴𝙳 𝙺𝙴 𝙿𝙴𝙽𝙶𝙶𝚄𝙽𝙰 BOT
 /sharech -> 𝙵𝙾𝚁𝚆𝙴𝙳 𝙺𝙴 𝙲𝙷𝙰𝙽𝙴𝙻 𝚃𝙴𝙻𝙴𝙶𝚁𝙰𝙼
 /tourl -> 𝙹𝙰𝙳𝙸𝙺𝙰𝙽 𝙵𝙾𝚃𝙾/𝚅𝙸𝙳𝙴𝙾 𝙹𝙰𝙳𝙸 𝙻𝙸𝙽𝙺
-/copyweb -> 𝙲𝙾𝙿𝚈 𝙷𝚃𝙼𝙻 𝚆𝙴𝙱𝙸𝚂𝚃𝙴 𝚃𝙰𝚁𝙶𝙴𝚃</blockquote>`,
+/copyweb -> 𝙲𝙾𝙿𝚈 𝙷𝚃𝙼𝙻 𝚆𝙴𝙱𝙸𝚂𝚃𝙴 𝚃𝙰𝚁𝙶𝙴𝚃
+/addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
@@ -470,7 +516,8 @@ bot.on("callback_query", async (query) => {
 /backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
 /addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
 /deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
-/listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃</blockquote>`,
+/listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
+/addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
@@ -484,12 +531,16 @@ bot.on("callback_query", async (query) => {
       caption: `<blockquote>⚙️ 𝗗𝗘𝗩𝗘𝗟𝗢𝗣𝗘𝗥 𝗙𝗜𝗧𝗨𝗥</blockquote>
 <blockquote>/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
 /listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
+/addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃
+/listch -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴
+/delch [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙲𝙷𝙰𝙽𝙽𝙴𝙻
+/blch [id] -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙲𝙷𝙰𝙽𝙽𝙴𝙻
+/setdch [durasi] -> 𝙰𝚃𝚄𝚁 𝙳𝙴𝙻𝙰𝚈 /sharech
 /addpay [nama,nomor,atas nama] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙿𝙰𝚈𝙼𝙴𝙽𝚃
 /delpay [nama] -> 𝙷𝙰𝙿𝚄𝚂 𝙿𝙰𝚈𝙼𝙴𝙽𝚃
 /addutang [teks] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝚄𝚃𝙰𝙽𝙶
 /delutang [nomor] -> 𝙷𝙰𝙿𝚄𝚂 𝚄𝚃𝙰𝙽𝙶
-/listutang -> 𝙻𝙸𝙷𝙰𝚃 𝚄𝚃𝙰𝙽𝙶
-/sharech -> 𝙵𝙾𝚁𝚆𝙰𝚁𝙳 𝙺𝙴 𝙲𝙷𝙰𝙽𝙽𝙴𝙻</blockquote>`,
+/listutang -> 𝙻𝙸𝙷𝙰𝚃 𝚄𝚃𝙰𝙽𝙶</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
@@ -534,6 +585,12 @@ bot.on("callback_query", async (query) => {
 // Cooldown Map untuk /share
 // =============================
 const shareCooldown = new Map(); // NEW
+
+// /sharech cooldown & delay settings
+const sharechCooldown = new Map(); // userId -> lastUsedTimestamp
+let sharechDelayNormal = 24 * 60 * 60 * 1000; // user biasa: 1x per hari (24 jam)
+let sharechDelayPremium = 60 * 60 * 1000; // premium: 1 jam
+let sharechDelayOwner = 30 * 60 * 1000; // owner: 30 menit
 
 // =============================
 // Fitur /share (premium + admin)
@@ -837,32 +894,60 @@ bot.onText(/^\/tourl$/, async (msg) => {
 });
 
 // =============================
-// Admin command: sharech (broadcast ke channel)
+// Fitur /sharech (semua user, tapi harus punya channel via /addch)
 // =============================
-bot.onText(/^\/sharech$/, async (msg) => { // NEW
-  if (!hasAccess(msg.from.id)) return;
-  if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /sharech");
+bot.onText(/^\/sharech$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  if (!msg.reply_to_message) return bot.sendMessage(chatId, "<blockquote>⚠️ Reply pesan untuk /sharech</blockquote>", { parse_mode: "HTML" });
+
+  // Developer bebas tanpa limit
+  if (!isDeveloper(userId)) {
+    // Cek apakah user punya channel
+    const userCh = getUserChannels(userId);
+    if (userCh.length === 0) {
+      return bot.sendMessage(chatId, "<blockquote>❌ Kamu belum menambahkan bot ke channel.\nGunakan /addch [id_channel] untuk menambahkan channel.</blockquote>", { parse_mode: "HTML" });
+    }
+
+    // Cek cooldown berdasarkan role
+    let delay = sharechDelayNormal; // default user biasa (1 hari)
+    if (isOwner(userId)) {
+      delay = sharechDelayOwner;
+    } else if (isPremium(userId)) {
+      delay = sharechDelayPremium;
+    }
+
+    const lastUsed = sharechCooldown.get(userId);
+    const now = Date.now();
+    if (lastUsed && now - lastUsed < delay) {
+      const remaining = delay - (now - lastUsed);
+      return bot.sendMessage(chatId, `<blockquote>⏳ Tunggu ${formatDuration(remaining)} sebelum menggunakan /sharech lagi.</blockquote>`, { parse_mode: "HTML" });
+    }
+    sharechCooldown.set(userId, now);
+  }
 
   const CHANNELS = getChannels();
-  if (CHANNELS.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada channel tersimpan.");
+  if (CHANNELS.length === 0) return bot.sendMessage(chatId, "<blockquote>📭 Tidak ada channel tersimpan.</blockquote>", { parse_mode: "HTML" });
 
   let success = 0, failed = 0;
-  let progressMsg = await bot.sendMessage(msg.chat.id, `<blockquote>📤 Mengirim ke channel 0%\n▱▱▱▱▱▱▱▱▱▱</blockquote>`, { parse_mode: "HTML" });
+  let progressMsg = await bot.sendMessage(chatId, `<blockquote>📤 Mengirim ke channel 0%\n▱▱▱▱▱▱▱▱▱▱</blockquote>`, { parse_mode: "HTML" });
 
   for (let i = 0; i < CHANNELS.length; i++) {
+    if (isChannelBlacklisted(CHANNELS[i])) continue; // skip blacklisted channel
     try {
-      await bot.forwardMessage(CHANNELS[i], msg.chat.id, msg.reply_to_message.message_id);
+      await bot.forwardMessage(CHANNELS[i], chatId, msg.reply_to_message.message_id);
       success++;
     } catch {
       failed++;
     }
 
     const percent = Math.round(((i + 1) / CHANNELS.length) * 100);
-    if (percent % 5 === 0 || percent === 100) {
+    if (percent % 10 === 0 || percent === 100) {
       const filled = Math.round(percent / 10);
       const bar = "▰".repeat(filled) + "▱".repeat(10 - filled);
       await bot.editMessageText(`<blockquote>📤 Mengirim ke channel ${percent}%\n${bar}</blockquote>`, {
-        chat_id: msg.chat.id,
+        chat_id: chatId,
         message_id: progressMsg.message_id,
         parse_mode: "HTML"
       }).catch(() => {});
@@ -870,10 +955,145 @@ bot.onText(/^\/sharech$/, async (msg) => { // NEW
     }
   }
 
-  await bot.deleteMessage(msg.chat.id, progressMsg.message_id).catch(() => {});
-  bot.sendMessage(msg.chat.id, `<blockquote>✅ Berhasil: ${success}</blockquote>
-<blockquote>❌ Gagal: ${failed}</blockquote>
-<blockquote>📊 Total: ${CHANNELS.length}</blockquote>`, { parse_mode: "HTML" });
+  await bot.deleteMessage(chatId, progressMsg.message_id).catch(() => {});
+  bot.sendMessage(chatId, `<blockquote>✅ Berhasil: ${success}</blockquote>\n<blockquote>❌ Gagal: ${failed}</blockquote>\n<blockquote>📊 Total: ${CHANNELS.length}</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// CHANNEL MANAGEMENT SYSTEM
+// =============================
+
+// /addch [channelId] - semua user bisa pakai, bot harus jadi admin di channel
+bot.onText(/^\/addch (-?\d+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const channelId = parseInt(match[1]);
+
+  // Cek apakah channel sudah ada di database
+  const channels = getChannels();
+  if (channels.includes(channelId)) {
+    return bot.sendMessage(chatId, "<blockquote>⚠️ Channel ini sudah terdaftar di database.</blockquote>", { parse_mode: "HTML" });
+  }
+
+  // Cek apakah bot adalah admin di channel tersebut
+  try {
+    const botInfo = await bot.getMe();
+    const botMember = await bot.getChatMember(channelId, botInfo.id);
+    
+    if (botMember.status !== "administrator") {
+      return bot.sendMessage(chatId, "<blockquote>❌ Bot belum menjadi admin di channel tersebut.\nSilakan tambahkan bot sebagai admin di channel, lalu coba lagi.</blockquote>", { parse_mode: "HTML" });
+    }
+
+    // Bot sudah admin, kirim pesan konfirmasi ke channel
+    const confirmMsg = await bot.sendMessage(channelId, "✅ Konfirmasi channel berhasil ✓");
+    
+    // Hapus pesan konfirmasi setelah 3 detik
+    setTimeout(async () => {
+      try {
+        await bot.deleteMessage(channelId, confirmMsg.message_id);
+      } catch {}
+    }, 3000);
+
+    // Masukkan ke database
+    addChannel(channelId);
+    addUserChannel(userId, channelId);
+
+    // Ambil info channel
+    let channelName = "Unknown Channel";
+    try {
+      const chInfo = await bot.getChat(channelId);
+      channelName = chInfo.title || "Unknown Channel";
+    } catch {}
+
+    bot.sendMessage(chatId, `<blockquote>✅ Channel berhasil ditambahkan!</blockquote>\n<blockquote>📢 ${esc(channelName)}</blockquote>\n<blockquote>🆔 <code>${channelId}</code></blockquote>`, { parse_mode: "HTML" });
+
+    // Notif ke developer
+    bot.sendMessage(DEVELOPER_ID, `<blockquote>📌 CHANNEL BARU DITAMBAHKAN VIA /addch</blockquote>\n<blockquote>📢 ${esc(channelName)}</blockquote>\n<blockquote>🆔 <code>${channelId}</code></blockquote>\n<blockquote>👤 Oleh: <code>${userId}</code></blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+
+  } catch (err) {
+    console.error("addch error:", err.message);
+    bot.sendMessage(chatId, "<blockquote>❌ Gagal memverifikasi channel.\nPastikan ID channel benar dan bot sudah ditambahkan sebagai admin.</blockquote>", { parse_mode: "HTML" });
+  }
+});
+
+// /listch - Developer only, lihat semua channel di database
+bot.onText(/^\/listch$/, async (msg) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const data = getChannels();
+  const blacklist = getChannelBlacklist();
+  
+  if (data.length === 0) {
+    return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada channel dalam database.</blockquote>", { parse_mode: "HTML" });
+  }
+
+  let listText = "<blockquote>📢 DAFTAR CHANNEL</blockquote>\n\n";
+  for (let i = 0; i < data.length; i++) {
+    const isBl = blacklist.includes(data[i]) ? " 🚫" : "";
+    try {
+      const chat = await bot.getChat(data[i]);
+      listText += `<blockquote>${i + 1}. ${esc(chat.title || "Unknown")} (ID: <code>${data[i]}</code>)${isBl}</blockquote>\n`;
+    } catch {
+      listText += `<blockquote>${i + 1}. ID: <code>${data[i]}</code> (❌ Tidak bisa ambil info)${isBl}</blockquote>\n`;
+    }
+  }
+
+  listText += `\n<blockquote>📊 Total: ${data.length} channel</blockquote>`;
+  if (blacklist.length > 0) listText += `\n<blockquote>🚫 Blacklisted: ${blacklist.length}</blockquote>`;
+
+  bot.sendMessage(msg.chat.id, listText.trim(), { parse_mode: "HTML" });
+});
+
+// /delch [channelId] - Developer only, hapus channel dari database
+bot.onText(/^\/delch (-?\d+)$/, (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const channelId = parseInt(match[1]);
+
+  const channels = getChannels();
+  if (!channels.includes(channelId)) {
+    return bot.sendMessage(msg.chat.id, `<blockquote>❌ Channel <code>${channelId}</code> tidak ditemukan di database.</blockquote>`, { parse_mode: "HTML" });
+  }
+
+  removeChannel(channelId);
+  // Hapus juga dari blacklist jika ada
+  removeChannelBlacklist(channelId);
+
+  bot.sendMessage(msg.chat.id, `<blockquote>🗑 Channel <code>${channelId}</code> berhasil dihapus dari database.</blockquote>`, { parse_mode: "HTML" });
+});
+
+// /blch [channelId] - Developer only, blacklist channel agar tidak terforward
+bot.onText(/^\/blch (-?\d+)$/, async (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const channelId = parseInt(match[1]);
+
+  const channels = getChannels();
+  if (!channels.includes(channelId)) {
+    return bot.sendMessage(msg.chat.id, `<blockquote>❌ Channel <code>${channelId}</code> tidak ada di database.</blockquote>`, { parse_mode: "HTML" });
+  }
+
+  if (isChannelBlacklisted(channelId)) {
+    // Toggle: hapus dari blacklist
+    removeChannelBlacklist(channelId);
+    bot.sendMessage(msg.chat.id, `<blockquote>✅ Channel <code>${channelId}</code> dihapus dari blacklist (aktif kembali).</blockquote>`, { parse_mode: "HTML" });
+  } else {
+    // Tambah ke blacklist
+    addChannelBlacklist(channelId);
+    bot.sendMessage(msg.chat.id, `<blockquote>🚫 Channel <code>${channelId}</code> di-blacklist. Pesan tidak akan terforward ke channel ini.</blockquote>`, { parse_mode: "HTML" });
+  }
+});
+
+// /setdch [durasi] - Developer only, set delay /sharech untuk premium/owner
+bot.onText(/^\/setdch (.+)$/, (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const input = match[1].trim();
+  const ms = parseDuration(input);
+  if (!ms) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Format salah.\nContoh: /setdch 30s, /setdch 1h, /setdch 30m</blockquote>", { parse_mode: "HTML" });
+
+  // Set semua delay berdasarkan input (tapi tetap bertingkat)
+  sharechDelayPremium = ms;
+  sharechDelayOwner = Math.max(Math.floor(ms / 2), 60000); // owner = setengah dari premium, minimal 1 menit
+  sharechDelayNormal = ms * 24; // user biasa = 24x lipat premium
+
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ Delay /sharech diatur:</blockquote>\n<blockquote>👤 User biasa: ${formatDuration(sharechDelayNormal)}</blockquote>\n<blockquote>💎 Premium: ${formatDuration(sharechDelayPremium)}</blockquote>\n<blockquote>👑 Owner: ${formatDuration(sharechDelayOwner)}</blockquote>\n<blockquote>⚙️ Developer: Tanpa limit</blockquote>`, { parse_mode: "HTML" });
 });
 
 // =============================
