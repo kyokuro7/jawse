@@ -700,7 +700,8 @@ bot.on("callback_query", async (query) => {
 /delgrupid [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙶𝚁𝚄𝙿 + 𝙱𝙾𝚃 𝙺𝙴𝙻𝚄𝙰𝚁
 /listgroup -> 𝙻𝙸𝙷𝙰𝚃 𝚂𝙴𝙼𝚄𝙰 𝙶𝚁𝚄𝙿
 /bcuser -> 𝙱𝚁𝙾𝙰𝙳𝙲𝙰𝚂𝚃 𝙺𝙴 𝚄𝚂𝙴𝚁
-/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
+/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝚂𝙴𝙼𝚄𝙰 𝙵𝙸𝙻𝙴 (𝚉𝙸𝙿)
+/setbackup [menit] -> 𝙰𝚃𝚄𝚁 𝙰𝚄𝚃𝙾 𝙱𝙰𝙲𝙺𝚄𝙿
 /addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
 /deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
 /listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
@@ -1856,22 +1857,125 @@ bot.onText(/^\/statushare$/, async (msg) => {
 });
 
 // =============================
-// Fitur /backup (Admin Utama saja)
+// Fitur /backup (Admin Utama saja) - Backup SEMUA file ke ZIP
 // =============================
-bot.onText(/^\/backup$/, async (msg) => {
-  if (!isOwner(msg.from.id)) return; // hanya owner
+const { execSync } = require("child_process");
 
+// Auto backup settings
+let autoBackupInterval = 20 * 60 * 1000; // default 20 menit
+let autoBackupTimer = null;
+
+// Daftar file database yang akan di-backup
+const backupDBFiles = [
+  premiumDB,
+  tempPremiumDB,
+  groupsDB,
+  channelsDB,
+  groupInviterDB,
+  utangDB,
+  payDB,
+  ownerDB,
+  blacklistDB,
+  channelBlacklistDB,
+  userChannelsDB
+];
+
+// Daftar file source yang akan di-backup
+const backupSourceFiles = [
+  "./bot.js",
+  "./config.js",
+  "./package.json"
+];
+
+// Fungsi buat backup ZIP
+async function createBackupZip(chatId, isAuto = false) {
   try {
-    if (!fs.existsSync(groupsDB)) {
-      return bot.sendMessage(msg.chat.id, "<blockquote>❌ File groups.json tidak ditemukan</blockquote>", { parse_mode: "HTML" });
+    const now = new Date();
+    const wib = now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).replace(/[\/\s:]/g, "-");
+    const zipName = `backup-${wib}.zip`;
+    const zipPath = path.join(__dirname, zipName);
+
+    // Kumpulkan file yang ada
+    const filesToBackup = [];
+    for (const f of [...backupDBFiles, ...backupSourceFiles]) {
+      const fullPath = path.resolve(__dirname, f);
+      if (fs.existsSync(fullPath)) {
+        filesToBackup.push(path.basename(fullPath));
+      }
     }
 
-    await bot.sendDocument(ADMIN_ID, groupsDB, {
-      caption: "<blockquote>📦 Backup file groups.json berhasil dikirim</blockquote>",
+    if (filesToBackup.length === 0) {
+      if (chatId) bot.sendMessage(chatId, "<blockquote>❌ Tidak ada file untuk di-backup</blockquote>", { parse_mode: "HTML" });
+      return;
+    }
+
+    // Buat ZIP menggunakan command zip
+    const fileList = filesToBackup.join(" ");
+    execSync(`zip -j "${zipPath}" ${fileList}`, { cwd: __dirname });
+
+    const label = isAuto ? "🔄 AUTO BACKUP" : "📦 MANUAL BACKUP";
+    const caption = `<blockquote>${label}</blockquote>
+<blockquote>📅 ${now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB</blockquote>
+<blockquote>📁 Total file: ${filesToBackup.length}</blockquote>
+<blockquote>📋 Files:\n${filesToBackup.map(f => `• ${f}`).join("\n")}</blockquote>`;
+
+    await bot.sendDocument(chatId || ADMIN_ID, zipPath, {
+      caption,
       parse_mode: "HTML"
     });
+
+    // Hapus file ZIP setelah dikirim
+    fs.unlinkSync(zipPath);
+
   } catch (err) {
     console.error("Backup Error:", err);
-    bot.sendMessage(msg.chat.id, "<blockquote>❌ Gagal membuat backup groups.json</blockquote>", { parse_mode: "HTML" });
+    if (chatId) bot.sendMessage(chatId, `<blockquote>❌ Gagal membuat backup\n${err.message}</blockquote>`, { parse_mode: "HTML" });
   }
+}
+
+// Command /backup
+bot.onText(/^\/backup$/, async (msg) => {
+  if (!isOwner(msg.from.id)) return;
+  await createBackupZip(msg.chat.id, false);
 });
+
+// =============================
+// Fitur /setbackup [menit] - Atur interval auto backup
+// =============================
+bot.onText(/^\/setbackup(?:\s+(\d+))?$/, (msg, match) => {
+  if (!isOwner(msg.from.id)) return;
+  const chatId = msg.chat.id;
+
+  if (!match[1]) {
+    // Tampilkan info interval saat ini
+    const currentMin = Math.round(autoBackupInterval / 60000);
+    return bot.sendMessage(chatId, `<blockquote>⏰ AUTO BACKUP INFO</blockquote>
+<blockquote>📊 Interval saat ini: ${currentMin} menit</blockquote>
+<blockquote>📌 Status: ${autoBackupTimer ? "AKTIF ✅" : "NONAKTIF ❌"}</blockquote>
+<blockquote>💡 Contoh: /setbackup 50 (untuk 50 menit)</blockquote>`, { parse_mode: "HTML" });
+  }
+
+  const minutes = parseInt(match[1]);
+  if (minutes < 1) {
+    return bot.sendMessage(chatId, "<blockquote>❌ Minimal 1 menit</blockquote>", { parse_mode: "HTML" });
+  }
+
+  autoBackupInterval = minutes * 60 * 1000;
+
+  // Restart timer
+  if (autoBackupTimer) clearInterval(autoBackupTimer);
+  autoBackupTimer = setInterval(() => {
+    createBackupZip(ADMIN_ID, true);
+  }, autoBackupInterval);
+
+  bot.sendMessage(chatId, `<blockquote>✅ Auto backup diatur setiap ${minutes} menit</blockquote>
+<blockquote>📦 Backup otomatis akan dikirim ke Admin</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Start auto backup (default 20 menit)
+// =============================
+autoBackupTimer = setInterval(() => {
+  createBackupZip(ADMIN_ID, true);
+}, autoBackupInterval);
+console.log(`✅ Auto backup aktif setiap ${autoBackupInterval / 60000} menit`);
