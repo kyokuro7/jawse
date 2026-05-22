@@ -967,7 +967,7 @@ bot.onText(/\/delprem (\d+)/, (msg, match) => {
 // Admin command: addgrupid & delgrupid
 // =============================
 bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
-  if (!isOwner(msg.from.id)) return;
+  if (!isDeveloper(msg.from.id)) return;
   const groupId = parseInt(match[1]);
   const groups = getGroups();
   if (!groups.includes(groupId)) {
@@ -980,7 +980,7 @@ bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
 });
 
 bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
-  if (!isOwner(msg.from.id)) return;
+  if (!isDeveloper(msg.from.id)) return;
   const groupId = parseInt(match[1]);
 
   // hapus dari database
@@ -1002,7 +1002,7 @@ bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
 });
 
 bot.onText(/\/listgroup/, (msg) => {
-  if (!isOwner(msg.from.id)) return;
+  if (!isDeveloper(msg.from.id)) return;
   const data = getGroups();
   bot.sendMessage(msg.chat.id, `<blockquote>👥 Groups:</blockquote>\n${data.join("\n") || "Kosong"}`, { parse_mode: "HTML" });
 });
@@ -1531,9 +1531,9 @@ bot.onText(/^\/copyweb (.+)$/, async (msg, match) => {
 // Admin command: add/del/list blacklist group
 // =============================
 
-// /addbl -> hanya admin utama, dipakai di grup
+// /addbl -> hanya developer, dipakai di grup
 bot.onText(/^\/addbl$/, (msg) => {
-  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
+  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1546,9 +1546,9 @@ bot.onText(/^\/addbl$/, (msg) => {
   bot.sendMessage(ADMIN_ID, `<blockquote>🚫 Grup masuk blacklist</blockquote>\n<blockquote>👥 ${esc(msg.chat.title || "Unknown Group")}</blockquote>\n<blockquote>🆔 <code>${chatId}</code></blockquote>`, { parse_mode: "HTML" });
 });
 
-// /deladdbl -> hanya admin utama, dipakai di grup
+// /deladdbl -> hanya developer, dipakai di grup
 bot.onText(/^\/deladdbl$/, (msg) => {
-  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
+  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1567,9 +1567,9 @@ bot.onText(/^\/deladdbl$/, (msg) => {
   }
 });
 
-// /listaddbl -> hanya admin utama
+// /listaddbl -> hanya developer
 bot.onText(/^\/listaddbl$/, async (msg) => {
-  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
+  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
   const data = getBlacklist();
   if (data.length === 0) {
     return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada grup dalam blacklist.</blockquote>", { parse_mode: "HTML" });
@@ -1934,7 +1934,7 @@ async function createBackupZip(chatId, isAuto = false) {
 
 // Command /backup
 bot.onText(/^\/backup$/, async (msg) => {
-  if (!isOwner(msg.from.id)) return;
+  if (!isDeveloper(msg.from.id)) return;
   await createBackupZip(msg.chat.id, false);
 });
 
@@ -1942,7 +1942,7 @@ bot.onText(/^\/backup$/, async (msg) => {
 // Fitur /setbackup [menit] - Atur interval auto backup
 // =============================
 bot.onText(/^\/setbackup(?:\s+(\d+))?$/, (msg, match) => {
-  if (!isOwner(msg.from.id)) return;
+  if (!isDeveloper(msg.from.id)) return;
   const chatId = msg.chat.id;
 
   if (!match[1]) {
