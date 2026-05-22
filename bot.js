@@ -117,13 +117,14 @@ function removeChannelBlacklist(channelId) {
 // User channel mapping: { "userId": [channelId1, channelId2] }
 function getUserChannels(userId) {
   const data = JSON.parse(fs.readFileSync(userChannelsDB));
-  return data[userId] || [];
+  return data[String(userId)] || [];
 }
 function addUserChannel(userId, channelId) {
   const data = JSON.parse(fs.readFileSync(userChannelsDB));
-  if (!data[userId]) data[userId] = [];
-  if (!data[userId].includes(channelId)) {
-    data[userId].push(channelId);
+  const key = String(userId);
+  if (!data[key]) data[key] = [];
+  if (!data[key].includes(channelId)) {
+    data[key].push(channelId);
     fs.writeFileSync(userChannelsDB, JSON.stringify(data, null, 2));
   }
 }
@@ -1074,10 +1075,10 @@ bot.onText(/^\/addch (-?\d+)$/, async (msg, match) => {
   const userId = msg.from.id;
   const channelId = parseInt(match[1]);
 
-  // Cek apakah channel sudah ada di database
-  const channels = getChannels();
-  if (channels.includes(channelId)) {
-    return bot.sendMessage(chatId, "<blockquote>⚠️ Channel ini sudah terdaftar di database.</blockquote>", { parse_mode: "HTML" });
+  // Cek apakah user sudah punya channel ini
+  const userCh = getUserChannels(userId);
+  if (userCh.includes(channelId)) {
+    return bot.sendMessage(chatId, "<blockquote>⚠️ Kamu sudah mendaftarkan channel ini sebelumnya.</blockquote>", { parse_mode: "HTML" });
   }
 
   // Cek apakah bot adalah admin di channel tersebut
@@ -1099,8 +1100,9 @@ bot.onText(/^\/addch (-?\d+)$/, async (msg, match) => {
       } catch {}
     }, 3000);
 
-    // Masukkan ke database
+    // Masukkan ke database channel (jika belum ada)
     addChannel(channelId);
+    // Link user ke channel
     addUserChannel(userId, channelId);
 
     // Ambil info channel
@@ -1117,7 +1119,7 @@ bot.onText(/^\/addch (-?\d+)$/, async (msg, match) => {
 
   } catch (err) {
     console.error("addch error:", err.message);
-    bot.sendMessage(chatId, "<blockquote>❌ Gagal memverifikasi channel.\nPastikan ID channel benar dan bot sudah ditambahkan sebagai admin.</blockquote>", { parse_mode: "HTML" });
+    bot.sendMessage(chatId, "<blockquote>❌ Gagal memverifikasi channel.\nPastikan ID channel benar (contoh: -1001234567890) dan bot sudah ditambahkan sebagai admin.</blockquote>", { parse_mode: "HTML" });
   }
 });
 
