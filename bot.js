@@ -5,7 +5,7 @@ const axios = require("axios");
 const FormData = require("form-data"); 
 const fetch = require("node-fetch");
 const path = require("path");
-const { TOKEN, ADMIN_ID, DEVELOPER_ID } = require("./config");
+const { TOKEN, ADMIN_ID, DEVELOPER_ID, REQUIRED_JOINS } = require("./config");
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -406,7 +406,34 @@ const logoUrl = "https://files.catbox.moe/wwz9uq.jpg";
 
 bot.onText(/^\/start$/, async (msg) => {
   const chatId = msg.chat.id;
+  const userId = msg.from.id;
   const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+
+  // Cek wajib join channel/grup (skip untuk developer)
+  if (!isDeveloper(userId)) {
+    let belumJoin = [];
+    for (const req of REQUIRED_JOINS) {
+      try {
+        const member = await bot.getChatMember(req.id, userId);
+        if (["left", "kicked"].includes(member.status)) {
+          belumJoin.push(req);
+        }
+      } catch {
+        belumJoin.push(req);
+      }
+    }
+
+    if (belumJoin.length > 0) {
+      const joinButtons = belumJoin.map(r => [{ text: r.text, url: r.url }]);
+      joinButtons.push([{ text: "✅ 𝚂𝚄𝙳𝙰𝙷 𝙹𝙾𝙸𝙽", callback_data: "check_join" }]);
+
+      return bot.sendPhoto(chatId, logoUrl, {
+        caption: `<blockquote>⚠️ ${username}, kamu harus join semua channel/grup berikut sebelum bisa menggunakan bot ini:</blockquote>`,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: joinButtons }
+      });
+    }
+  }
 
   const users = JSON.parse(fs.readFileSync(premiumDB)).length;
   const groups = getGroups().length;
@@ -420,7 +447,7 @@ bot.onText(/^\/start$/, async (msg) => {
       { text: "+ 𝙰𝙳𝙳 𝚃𝙾 𝙼𝙴 𝙶𝚁𝙾𝚄𝙿", url: `https://t.me/${(await bot.getMe()).username}?startgroup=true` }
     ],
     [
-      { text: "𝚅𝙴𝚁𝙸𝙵𝙸𝙴𝙳", callback_data: "verified" } // awal belum premium/admin
+      { text: "𝚅𝙴𝚁𝙸𝙵𝙸𝙴𝙳", callback_data: "verified" }
     ]
   ];
 
@@ -442,6 +469,58 @@ bot.onText(/^\/start$/, async (msg) => {
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
+
+  if (query.data === "check_join") {
+    // Cek ulang apakah user sudah join semua
+    let belumJoin = [];
+    for (const req of REQUIRED_JOINS) {
+      try {
+        const member = await bot.getChatMember(req.id, userId);
+        if (["left", "kicked"].includes(member.status)) {
+          belumJoin.push(req);
+        }
+      } catch {
+        belumJoin.push(req);
+      }
+    }
+
+    if (belumJoin.length > 0) {
+      return bot.answerCallbackQuery(query.id, { text: "❌ Kamu belum join semua channel/grup!", show_alert: true });
+    }
+
+    // Sudah join semua, hapus pesan lama dan tampilkan menu utama
+    bot.deleteMessage(chatId, query.message.message_id);
+
+    const username = query.from.username ? `@${query.from.username}` : query.from.first_name;
+    const users = JSON.parse(fs.readFileSync(premiumDB)).length;
+    const groups = getGroups().length;
+
+    const buttons = [
+      [
+        { text: "𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁", url: "https://t.me/Jangansoasikdeh" },
+        { text: "𝙲𝙷𝙰𝙽𝙽𝙴𝙻", url: "https://t.me/jasebfreedisini" }
+      ],
+      [
+        { text: "+ 𝙰𝙳𝙳 𝚃𝙾 𝙼𝙴 𝙶𝚁𝙾𝚄𝙿", url: `https://t.me/${(await bot.getMe()).username}?startgroup=true` }
+      ],
+      [
+        { text: "𝚅𝙴𝚁𝙸𝙵𝙸𝙴𝙳", callback_data: "verified" }
+      ]
+    ];
+
+    bot.sendPhoto(chatId, logoUrl, {
+      caption: `<blockquote>👋 Ola ${username} Selamat Datang Di Bot Jaseb Free</blockquote>
+<blockquote>☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
+☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @Jangansoasikdeh</blockquote>
+<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴 </blockquote>
+<blockquote>👤 𝚄𝚂𝙴𝚁 : ${users}
+👥 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>`,
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: buttons }
+    });
+
+    return bot.answerCallbackQuery(query.id, { text: "✅ Verifikasi berhasil!" });
+  }
 
   if (query.data === "verified") {
     if (hasAccess(userId)) {
