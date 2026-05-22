@@ -435,6 +435,19 @@ bot.onText(/^\/start$/, async (msg) => {
     }
   }
 
+  // Loading animation
+  const loadMsg = await bot.sendMessage(chatId, "<blockquote>▰▱▱▱▱▱▱▱▱▱</blockquote>", { parse_mode: "HTML" });
+  await new Promise(r => setTimeout(r, 400));
+  await bot.editMessageText("<blockquote>▰▰▰▱▱▱▱▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+  await new Promise(r => setTimeout(r, 400));
+  await bot.editMessageText("<blockquote>▰▰▰▰▰▱▱▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+  await new Promise(r => setTimeout(r, 400));
+  await bot.editMessageText("<blockquote>▰▰▰▰▰▰▰▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+  await new Promise(r => setTimeout(r, 400));
+  await bot.editMessageText("<blockquote>▰▰▰▰▰▰▰▰▰▰</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+  await new Promise(r => setTimeout(r, 300));
+  await bot.deleteMessage(chatId, loadMsg.message_id).catch(() => {});
+
   const users = JSON.parse(fs.readFileSync(premiumDB)).length;
   const groups = getGroups().length;
 
@@ -488,8 +501,21 @@ bot.on("callback_query", async (query) => {
       return bot.answerCallbackQuery(query.id, { text: "❌ Kamu belum join semua channel/grup!", show_alert: true });
     }
 
-    // Sudah join semua, hapus pesan lama dan tampilkan menu utama
+    // Sudah join semua, hapus pesan lama dan tampilkan loading
     bot.deleteMessage(chatId, query.message.message_id);
+
+    // Loading animation
+    const loadMsg = await bot.sendMessage(chatId, "<blockquote>▰▱▱▱▱▱▱▱▱▱</blockquote>", { parse_mode: "HTML" });
+    await new Promise(r => setTimeout(r, 400));
+    await bot.editMessageText("<blockquote>▰▰▰▱▱▱▱▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+    await new Promise(r => setTimeout(r, 400));
+    await bot.editMessageText("<blockquote>▰▰▰▰▰▱▱▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+    await new Promise(r => setTimeout(r, 400));
+    await bot.editMessageText("<blockquote>▰▰▰▰▰▰▰▱▱▱</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+    await new Promise(r => setTimeout(r, 400));
+    await bot.editMessageText("<blockquote>▰▰▰▰▰▰▰▰▰▰</blockquote>", { chat_id: chatId, message_id: loadMsg.message_id, parse_mode: "HTML" }).catch(() => {});
+    await new Promise(r => setTimeout(r, 300));
+    await bot.deleteMessage(chatId, loadMsg.message_id).catch(() => {});
 
     const username = query.from.username ? `@${query.from.username}` : query.from.first_name;
     const users = JSON.parse(fs.readFileSync(premiumDB)).length;
