@@ -903,17 +903,32 @@ bot.onText(/^\/share$/, async (msg) => {
   let success = 0, failed = 0;
   let progressMsg = await bot.sendMessage(chatId, `<blockquote>📤 Mengirim ke grup 0%\n▱▱▱▱▱▱▱▱▱▱</blockquote>`, { parse_mode: "HTML" });
 
+  // Siapkan data pesan reply untuk watermark
+  const replyMsg = msg.reply_to_message;
+  const isTextOnly = !replyMsg.photo && !replyMsg.video && !replyMsg.document && !replyMsg.audio && !replyMsg.voice && !replyMsg.video_note && !replyMsg.sticker && !replyMsg.animation;
+
   for (let i = 0; i < GROUPS.length; i++) {
     if (isBlacklisted(GROUPS[i])) continue; // skip grup blacklist
     try {
       if (useWatermark) {
-        // Premium gratisan: "pesan dari @username" di atas + copyMessage + watermark di bawah
-        await bot.sendMessage(GROUPS[i], `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
-        await bot.copyMessage(GROUPS[i], chatId, msg.reply_to_message.message_id);
-        await bot.sendMessage(GROUPS[i], `<blockquote>jasher by @${botUsername}</blockquote>`, { parse_mode: "HTML" });
+        // Premium gratisan: kirim 1 pesan gabungan (header + konten + footer)
+        if (isTextOnly) {
+          // Pesan teks biasa: gabungkan jadi satu sendMessage
+          const originalText = replyMsg.text || "";
+          const combinedText = `pesan dari ${esc(senderUsername)}\n\n${esc(originalText)}\n\n<blockquote>jasher by @${botUsername}</blockquote>`;
+          await bot.sendMessage(GROUPS[i], combinedText, { parse_mode: "HTML" });
+        } else {
+          // Pesan media: copyMessage dengan caption yang dimodifikasi
+          const originalCaption = replyMsg.caption || "";
+          const newCaption = `pesan dari ${esc(senderUsername)}\n\n${esc(originalCaption)}\n\n<blockquote>jasher by @${botUsername}</blockquote>`;
+          await bot.copyMessage(GROUPS[i], chatId, replyMsg.message_id, {
+            caption: newCaption,
+            parse_mode: "HTML"
+          });
+        }
       } else {
         // Owner/Developer/Manual Premium: copyMessage tanpa watermark
-        await bot.copyMessage(GROUPS[i], chatId, msg.reply_to_message.message_id);
+        await bot.copyMessage(GROUPS[i], chatId, replyMsg.message_id);
       }
       success++;
     } catch { failed++; }
