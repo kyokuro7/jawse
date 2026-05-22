@@ -452,6 +452,18 @@ bot.onText(/^\/start$/, async (msg) => {
   const users = JSON.parse(fs.readFileSync(premiumDB)).length;
   const groups = getGroups().length;
 
+  // Get current date/time in WIB
+  const now = new Date();
+  const wibDate = now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+
+  // User info
+  const nameUser = msg.from.first_name + (msg.from.last_name ? " " + msg.from.last_name : "");
+  const userIdDisplay = msg.from.id;
+  let roleDisplay = "Free";
+  if (isDeveloper(userId)) roleDisplay = "Developer";
+  else if (isOwner(userId)) roleDisplay = "Owner";
+  else if (isPremium(userId)) roleDisplay = "Premium";
+
   const buttons = [
     [
       { text: "𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁", url: "https://t.me/Jangansoasikdeh" },
@@ -466,12 +478,17 @@ bot.onText(/^\/start$/, async (msg) => {
   ];
 
   bot.sendPhoto(chatId, logoUrl, {
-    caption: `<blockquote>👋 Ola ${username} Selamat Datang Di Bot Jaseb Free</blockquote>
-<blockquote>☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
-☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @Jangansoasikdeh</blockquote>
-<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴 </blockquote>
-<blockquote>👤 𝚄𝚂𝙴𝚁 : ${users}
-👥 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>`,
+    caption: `👋 Ola ${username} Selamat Datang Di Bot Jaseb Free
+☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
+☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @axcelforlife
+<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴</blockquote>
+<blockquote>✰ 𝙳𝙰𝚃𝙴 : ${wibDate}(WIB)
+✰ 𝚄𝚂𝙴𝚁 : ${users}
+✰ 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>
+<blockquote>𝚄𝚂𝙴𝚁 𝙸𝙽𝙵𝙾𝚁𝙼𝙰𝚃𝙸𝙾𝙽</blockquote>
+<blockquote>✰ 𝙽𝙰𝙼𝙴 : ${esc(nameUser)}
+✰ 𝙸𝙳 : <code>${userIdDisplay}</code>
+✰ 𝚁𝙾𝙻𝙴 : ${roleDisplay}</blockquote>`,
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: buttons }
   });
@@ -522,6 +539,18 @@ bot.on("callback_query", async (query) => {
     const users = JSON.parse(fs.readFileSync(premiumDB)).length;
     const groups = getGroups().length;
 
+    // Get current date/time in WIB
+    const nowJoin = new Date();
+    const wibDateJoin = nowJoin.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+
+    // User info
+    const nameUserJoin = query.from.first_name + (query.from.last_name ? " " + query.from.last_name : "");
+    const userIdDisplayJoin = query.from.id;
+    let roleDisplayJoin = "Free";
+    if (isDeveloper(userId)) roleDisplayJoin = "Developer";
+    else if (isOwner(userId)) roleDisplayJoin = "Owner";
+    else if (isPremium(userId)) roleDisplayJoin = "Premium";
+
     const buttons = [
       [
         { text: "𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁", url: "https://t.me/Jangansoasikdeh" },
@@ -536,12 +565,17 @@ bot.on("callback_query", async (query) => {
     ];
 
     bot.sendPhoto(chatId, logoUrl, {
-      caption: `<blockquote>👋 Ola ${username} Selamat Datang Di Bot Jaseb Free</blockquote>
-<blockquote>☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
-☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @Jangansoasikdeh</blockquote>
-<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴 </blockquote>
-<blockquote>👤 𝚄𝚂𝙴𝚁 : ${users}
-👥 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>`,
+      caption: `👋 Ola ${username} Selamat Datang Di Bot Jaseb Free
+☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
+☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @axcelforlife
+<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴</blockquote>
+<blockquote>✰ 𝙳𝙰𝚃𝙴 : ${wibDateJoin}(WIB)
+✰ 𝚄𝚂𝙴𝚁 : ${users}
+✰ 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>
+<blockquote>𝚄𝚂𝙴𝚁 𝙸𝙽𝙵𝙾𝚁𝙼𝙰𝚃𝙸𝙾𝙽</blockquote>
+<blockquote>✰ 𝙽𝙰𝙼𝙴 : ${esc(nameUserJoin)}
+✰ 𝙸𝙳 : <code>${userIdDisplayJoin}</code>
+✰ 𝚁𝙾𝙻𝙴 : ${roleDisplayJoin}</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
@@ -659,6 +693,18 @@ bot.on("callback_query", async (query) => {
     const users = JSON.parse(fs.readFileSync(premiumDB)).length;
     const groups = getGroups().length;
 
+    // Get current date/time in WIB
+    const nowBack = new Date();
+    const wibDateBack = nowBack.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+
+    // User info
+    const nameUserBack = query.from.first_name + (query.from.last_name ? " " + query.from.last_name : "");
+    const userIdDisplayBack = query.from.id;
+    let roleDisplayBack = "Free";
+    if (isDeveloper(userId)) roleDisplayBack = "Developer";
+    else if (isOwner(userId)) roleDisplayBack = "Owner";
+    else if (isPremium(userId)) roleDisplayBack = "Premium";
+
     const buttons = [
       [
         { text: "𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁", url: "https://t.me/Jangansoasikdeh" },
@@ -675,12 +721,17 @@ bot.on("callback_query", async (query) => {
     ];
 
     bot.sendPhoto(chatId, logoUrl, {
-      caption: `<blockquote>👋 Ola ${username} Selamat Datang Di Bot Jaseb Free</blockquote>
-<blockquote>☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
-☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @Jangansoasikdeh</blockquote>
-<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴 </blockquote>
-<blockquote>👤 𝚄𝚂𝙴𝚁 : ${users}
-👥 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>`,
+      caption: `👋 Ola ${username} Selamat Datang Di Bot Jaseb Free
+☐ 𝚅𝙴𝚁𝚂𝙸𝙾𝙽 : 𝟷.𝟶 𝚅𝙸𝙿
+☐ 𝙰𝚄𝚃𝙷𝙾𝚁 : @axcelforlife
+<blockquote>𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴</blockquote>
+<blockquote>✰ 𝙳𝙰𝚃𝙴 : ${wibDateBack}(WIB)
+✰ 𝚄𝚂𝙴𝚁 : ${users}
+✰ 𝙶𝚁𝙾𝚄𝙿 : ${groups}</blockquote>
+<blockquote>𝚄𝚂𝙴𝚁 𝙸𝙽𝙵𝙾𝚁𝙼𝙰𝚃𝙸𝙾𝙽</blockquote>
+<blockquote>✰ 𝙽𝙰𝙼𝙴 : ${esc(nameUserBack)}
+✰ 𝙸𝙳 : <code>${userIdDisplayBack}</code>
+✰ 𝚁𝙾𝙻𝙴 : ${roleDisplayBack}</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
