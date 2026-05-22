@@ -532,7 +532,7 @@ bot.onText(/^\/start$/, async (msg) => {
   await new Promise(r => setTimeout(r, 300));
   await bot.deleteMessage(chatId, loadMsg.message_id).catch(() => {});
 
-  const users = JSON.parse(fs.readFileSync(premiumDB)).length;
+  const users = getUsers().length;
   const groups = getGroups().length;
 
   // Get current date/time in WIB
@@ -619,7 +619,7 @@ bot.on("callback_query", async (query) => {
     await bot.deleteMessage(chatId, loadMsg.message_id).catch(() => {});
 
     const username = query.from.username ? `@${query.from.username}` : query.from.first_name;
-    const users = JSON.parse(fs.readFileSync(premiumDB)).length;
+    const users = getUsers().length;
     const groups = getGroups().length;
 
     // Get current date/time in WIB
@@ -777,7 +777,7 @@ bot.on("callback_query", async (query) => {
     bot.deleteMessage(chatId, query.message.message_id);
 
     const username = query.from.username ? `@${query.from.username}` : query.from.first_name;
-    const users = JSON.parse(fs.readFileSync(premiumDB)).length;
+    const users = getUsers().length;
     const groups = getGroups().length;
 
     // Get current date/time in WIB
