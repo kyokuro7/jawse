@@ -27,6 +27,10 @@ if (!fs.existsSync(ownerDB)) fs.writeFileSync(ownerDB, JSON.stringify([]));
 const blacklistDB = "./blacklist.json";
 if (!fs.existsSync(blacklistDB)) fs.writeFileSync(blacklistDB, JSON.stringify([]));
 
+// Users database (semua user yang /start)
+const usersDB = "./users.json";
+if (!fs.existsSync(usersDB)) fs.writeFileSync(usersDB, JSON.stringify([]));
+
 function getBlacklist() {
   return JSON.parse(fs.readFileSync(blacklistDB));
 }
@@ -39,6 +43,34 @@ function addBlacklist(groupId) {
 }
 function isBlacklisted(groupId) {
   return getBlacklist().includes(groupId);
+}
+
+// Users database helpers
+function getUsers() {
+  return JSON.parse(fs.readFileSync(usersDB));
+}
+function addUser(userId) {
+  const data = getUsers();
+  if (!data.includes(userId)) {
+    data.push(userId);
+    fs.writeFileSync(usersDB, JSON.stringify(data, null, 2));
+  }
+}
+
+// Cek apakah user adalah "premium gratisan" (dari tambah bot ke grup, bukan /addprem manual)
+function isFreePremium(userId) {
+  if (isOwner(userId) || isDeveloper(userId)) return false;
+  if (!isPremium(userId)) return false;
+  // Jika user ada di group_inviter sebagai pengundang → free premium
+  const inviters = JSON.parse(fs.readFileSync(groupInviterDB));
+  return inviters.some(x => x.userId === userId);
+}
+
+// Cek apakah user adalah premium yang di-add manual via /addprem (bukan dari grup)
+function isManualPremium(userId) {
+  if (isOwner(userId) || isDeveloper(userId)) return true; // owner/dev selalu dianggap manual
+  if (!isPremium(userId)) return false;
+  return !isFreePremium(userId);
 }
 
 // Owner database helpers
@@ -458,6 +490,9 @@ bot.onText(/^\/start$/, async (msg) => {
   const userId = msg.from.id;
   const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
+  // Simpan user ID ke database users.json
+  addUser(userId);
+
   // Cek wajib join channel/grup (skip untuk developer)
   if (!isDeveloper(userId)) {
     let belumJoin = [];
@@ -789,6 +824,42 @@ bot.on("callback_query", async (query) => {
 });
 
 // =============================
+// Callback handler untuk /bcuser2 buttons
+// =============================
+bot.on("callback_query", async (query) => {
+  const data = query.data;
+  
+  if (data && data.startsWith("bcuser2_forward_")) {
+    // Format: bcuser2_forward_{chatId}_{messageId}
+    const parts = data.replace("bcuser2_forward_", "").split("_");
+    const fromChatId = parseInt(parts[0]);
+    const messageId = parseInt(parts[1]);
+    const userId = query.from.id;
+    
+    try {
+      // Forward pesan asli ke semua grup user
+      const GROUPS = getGroups();
+      let success = 0, failed = 0;
+      for (const gid of GROUPS) {
+        if (isBlacklisted(gid)) continue;
+        try {
+          await bot.copyMessage(gid, fromChatId, messageId);
+          success++;
+        } catch { failed++; }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      bot.answerCallbackQuery(query.id, { text: `✅ Forwarded ke ${success} grup!`, show_alert: true });
+    } catch (err) {
+      bot.answerCallbackQuery(query.id, { text: "❌ Gagal forward pesan.", show_alert: true });
+    }
+  }
+
+  if (data === "bcuser2_notforward") {
+    bot.answerCallbackQuery(query.id, { text: "Okay, pesan tidak di-forward.", show_alert: false });
+  }
+});
+
+// =============================
 // Cooldown Map untuk /share
 // =============================
 const shareCooldown = new Map(); // NEW
@@ -800,7 +871,7 @@ let sharechDelayPremium = 60 * 60 * 1000; // premium: 1 jam
 let sharechDelayOwner = 30 * 60 * 1000; // owner: 30 menit
 
 // =============================
-// Fitur /share (premium + admin)
+// Fitur /share (premium + admin) — copyMessage + watermark untuk premium gratisan
 // =============================
 bot.onText(/^\/share$/, async (msg) => {
   const chatId = msg.chat.id;
@@ -810,7 +881,7 @@ bot.onText(/^\/share$/, async (msg) => {
   if (!(hasAccess(userId))) return bot.sendMessage(chatId, "❌ Hanya Admin/Premium yang bisa pakai.");
 
   // === Cek cooldown (hanya untuk premium, bukan admin utama) ===
-  if (!isOwner(userId) && isPremium(userId)) { // NEW
+  if (!isOwner(userId) && isPremium(userId)) {
     const lastUsed = shareCooldown.get(userId);
     const now = Date.now();
     if (lastUsed && now - lastUsed < 30000) { // 30 detik
@@ -824,17 +895,25 @@ bot.onText(/^\/share$/, async (msg) => {
   const GROUPS = getGroups();
   if (GROUPS.length === 0) return bot.sendMessage(chatId, "📭 Tidak ada grup tersimpan.");
 
+  const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+  const botInfo = await bot.getMe();
+  const botUsername = botInfo.username;
+  const useWatermark = isFreePremium(userId); // watermark hanya untuk premium gratisan
+
   let success = 0, failed = 0;
   let progressMsg = await bot.sendMessage(chatId, `<blockquote>📤 Mengirim ke grup 0%\n▱▱▱▱▱▱▱▱▱▱</blockquote>`, { parse_mode: "HTML" });
 
   for (let i = 0; i < GROUPS.length; i++) {
-    if (isBlacklisted(GROUPS[i])) continue; // ✅ skip grup blacklist
+    if (isBlacklisted(GROUPS[i])) continue; // skip grup blacklist
     try {
-      if (msg.reply_to_message.text) {
-        await bot.sendMessage(GROUPS[i], msg.reply_to_message.text);
-      } else if (msg.reply_to_message.photo) {
-        const photo = msg.reply_to_message.photo.pop().file_id;
-        await bot.sendPhoto(GROUPS[i], photo, { caption: msg.reply_to_message.caption || "" });
+      if (useWatermark) {
+        // Premium gratisan: "pesan dari @username" di atas + copyMessage + watermark di bawah
+        await bot.sendMessage(GROUPS[i], `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
+        await bot.copyMessage(GROUPS[i], chatId, msg.reply_to_message.message_id);
+        await bot.sendMessage(GROUPS[i], `<blockquote>jasher by @${botUsername}</blockquote>`, { parse_mode: "HTML" });
+      } else {
+        // Owner/Developer/Manual Premium: copyMessage tanpa watermark
+        await bot.copyMessage(GROUPS[i], chatId, msg.reply_to_message.message_id);
       }
       success++;
     } catch { failed++; }
@@ -859,14 +938,21 @@ bot.onText(/^\/share$/, async (msg) => {
 });
 
 // =============================
-// Fitur /share2 (admin utama)
+// Fitur /share2 (premium manual, owner, developer ONLY — premium gratisan TIDAK bisa)
 // =============================
 bot.onText(/^\/share2$/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
   if (!msg.reply_to_message) return bot.sendMessage(chatId, "⚠️ Reply pesan untuk /share2");
-  if (!hasAccess(userId)) return bot.sendMessage(chatId, "❌ Hanya Admin Utama yang bisa pakai.");
+  
+  // Premium gratisan TIDAK bisa akses /share2
+  if (isFreePremium(userId)) {
+    return bot.sendMessage(chatId, "<blockquote>❌ Premium gratisan tidak bisa menggunakan /share2.\nGunakan /share sebagai gantinya.</blockquote>", { parse_mode: "HTML" });
+  }
+  if (!isManualPremium(userId)) {
+    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Premium (manual), Owner, dan Developer yang bisa pakai.</blockquote>", { parse_mode: "HTML" });
+  }
 
   const GROUPS = getGroups();
   if (GROUPS.length === 0) return bot.sendMessage(chatId, "📭 Tidak ada grup tersimpan.");
@@ -875,7 +961,7 @@ bot.onText(/^\/share2$/, async (msg) => {
   let progressMsg = await bot.sendMessage(chatId, `<blockquote>📤 Forwarding ke grup 0%\n▱▱▱▱▱▱▱▱▱▱</blockquote>`, { parse_mode: "HTML" });
 
   for (let i = 0; i < GROUPS.length; i++) {
-    if (isBlacklisted(GROUPS[i])) continue; // ✅ skip grup blacklist
+    if (isBlacklisted(GROUPS[i])) continue; // skip grup blacklist
     try {
       await bot.forwardMessage(GROUPS[i], chatId, msg.reply_to_message.message_id);
       success++;
@@ -1008,27 +1094,76 @@ bot.onText(/\/listgroup/, (msg) => {
 });
 
 // =============================
-// Admin command: bcuser (broadcast ke user Premium)
+// Admin command: bcuser (broadcast ke SEMUA user di users.json)
 // =============================
-bot.onText(/^\/bcuser$/, async (msg) => { // NEW
+bot.onText(/^\/bcuser$/, async (msg) => {
   if (!hasAccess(msg.from.id)) return;
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser");
 
-  const data = JSON.parse(fs.readFileSync(premiumDB));
-  if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user premium terdaftar.");
+  const data = getUsers();
+  if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user terdaftar.");
+
+  const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
   let success = 0, failed = 0;
   for (const userId of data) {
     try {
-      await bot.forwardMessage(userId, msg.chat.id, msg.reply_to_message.message_id);
+      // Kirim pesan "dari @username" di atas
+      await bot.sendMessage(userId, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
+      // Copy pesan (bukan forward) menggunakan copyMessage
+      await bot.copyMessage(userId, msg.chat.id, msg.reply_to_message.message_id);
       success++;
     } catch {
       failed++;
     }
-    await new Promise(r => setTimeout(r, 200)); // beri jeda kecil biar aman
+    await new Promise(r => setTimeout(r, 200));
   }
 
   bot.sendMessage(msg.chat.id, `<blockquote>📢 Broadcast selesai</blockquote>
+<blockquote>✅ Berhasil: ${success}</blockquote>
+<blockquote>❌ Gagal: ${failed}</blockquote>
+<blockquote>👤 Total: ${data.length}</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Admin command: bcuser2 (broadcast dengan button Forward/Not Forward)
+// Akses: HANYA premium yang di-add manual (/addprem), owner, developer
+// Premium gratisan (dari tambah bot ke grup) TIDAK bisa
+// =============================
+bot.onText(/^\/bcuser2$/, async (msg) => {
+  const userId = msg.from.id;
+
+  // Cek akses: hanya manual premium, owner, developer
+  if (!isManualPremium(userId)) {
+    return bot.sendMessage(msg.chat.id, "<blockquote>❌ Hanya Premium (manual), Owner, dan Developer yang bisa menggunakan /bcuser2.</blockquote>", { parse_mode: "HTML" });
+  }
+
+  if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser2");
+
+  const data = getUsers();
+  if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user terdaftar.");
+
+  const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+  const buttons = [[
+    { text: "📤 Forward", callback_data: `bcuser2_forward_${msg.chat.id}_${msg.reply_to_message.message_id}` },
+    { text: "🚫 Not Forward", callback_data: `bcuser2_notforward` }
+  ]];
+
+  let success = 0, failed = 0;
+  for (const uid of data) {
+    try {
+      await bot.sendMessage(uid, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
+      await bot.copyMessage(uid, msg.chat.id, msg.reply_to_message.message_id, {
+        reply_markup: { inline_keyboard: buttons }
+      });
+      success++;
+    } catch {
+      failed++;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  bot.sendMessage(msg.chat.id, `<blockquote>📢 Broadcast (bcuser2) selesai</blockquote>
 <blockquote>✅ Berhasil: ${success}</blockquote>
 <blockquote>❌ Gagal: ${failed}</blockquote>
 <blockquote>👤 Total: ${data.length}</blockquote>`, { parse_mode: "HTML" });
@@ -1628,19 +1763,27 @@ function formatDuration(ms) {
   return parts.length ? parts.join(" ") : "0s";
 }
 
-// Fungsi forward cepat ke semua grup
-async function forwardToAllGroups(message, fromChatId) {
+// Fungsi forward/copy ke semua grup (dengan opsi watermark)
+async function forwardToAllGroups(message, fromChatId, useWatermark = false, senderUsername = "", botUsername = "") {
   const GROUPS = getGroups();
   for (const gid of GROUPS) {
     if (isBlacklisted(gid)) continue;
     try {
-      await bot.forwardMessage(gid, fromChatId, message.message_id);
+      if (useWatermark) {
+        // Premium gratisan: watermark di atas + copyMessage + watermark di bawah
+        await bot.sendMessage(gid, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
+        await bot.copyMessage(gid, fromChatId, message.message_id);
+        await bot.sendMessage(gid, `<blockquote>jasher by @${botUsername}</blockquote>`, { parse_mode: "HTML" });
+      } else {
+        // Owner/Developer/Manual Premium: forward tanpa watermark
+        await bot.forwardMessage(gid, fromChatId, message.message_id);
+      }
     } catch {}
     await new Promise(r => setTimeout(r, autoShareGroupDelay)); // delay antar grup
   }
 }
 
-// /autoshare (premium, owner, developer)
+// /autoshare (premium, owner, developer) — premium gratisan: watermark + delay 40 menit
 bot.onText(/^\/autoshare$/, async (msg) => {
   const userId = msg.from.id;
   if (!(hasAccess(userId))) {
@@ -1654,10 +1797,18 @@ bot.onText(/^\/autoshare$/, async (msg) => {
 
   autoShareMessage = msg.reply_to_message;
 
+  const useWatermark = isFreePremium(userId);
+  const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+  const botInfo = await bot.getMe();
+  const botUsername = botInfo.username;
+
+  // Premium gratisan: delay 40 menit per putaran, lainnya: sesuai autoShareCooldown
+  const cycleCooldown = useWatermark ? 40 * 60 * 1000 : autoShareCooldown;
+
   const cycle = async () => {
     if (autoShareRunning) return; // skip kalau ada cycle yang masih jalan
     autoShareRunning = true;
-    await forwardToAllGroups(autoShareMessage, msg.chat.id);
+    await forwardToAllGroups(autoShareMessage, msg.chat.id, useWatermark, senderUsername, botUsername);
     autoShareRunning = false;
   };
 
@@ -1665,9 +1816,10 @@ bot.onText(/^\/autoshare$/, async (msg) => {
   await cycle();
 
   // jalankan berulang sesuai cooldown
-  autoShareInterval = setInterval(cycle, autoShareCooldown);
+  autoShareInterval = setInterval(cycle, cycleCooldown);
 
-  bot.sendMessage(msg.chat.id, `<blockquote>✅ AutoShare dimulai</blockquote>\n<blockquote>⏳ Cooldown antar cycle: ${formatDuration(autoShareCooldown)}</blockquote>`, { parse_mode: "HTML" });
+  const cooldownLabel = useWatermark ? "40m (premium gratisan)" : formatDuration(autoShareCooldown);
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ AutoShare dimulai</blockquote>\n<blockquote>⏳ Cooldown antar cycle: ${cooldownLabel}</blockquote>`, { parse_mode: "HTML" });
 });
 
 // /stopauto (premium, owner, developer)
@@ -1876,7 +2028,8 @@ const backupDBFiles = [
   ownerDB,
   blacklistDB,
   channelBlacklistDB,
-  userChannelsDB
+  userChannelsDB,
+  usersDB
 ];
 
 // Daftar file source yang akan di-backup
