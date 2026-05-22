@@ -715,7 +715,8 @@ bot.on("callback_query", async (query) => {
 /addgrupid [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙶𝚁𝚄𝙿 𝙼𝙰𝙽𝚄𝙰𝙻
 /delgrupid [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙶𝚁𝚄𝙿 + 𝙱𝙾𝚃 𝙺𝙴𝙻𝚄𝙰𝚁
 /listgroup -> 𝙻𝙸𝙷𝙰𝚃 𝚂𝙴𝙼𝚄𝙰 𝙶𝚁𝚄𝙿
-/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
+/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝚂𝙴𝙼𝚄𝙰 𝙵𝙸𝙻𝙴
+/setbackup [menit] -> 𝙰𝚃𝚄𝚁 𝙰𝚄𝚃𝙾 𝙱𝙰𝙲𝙺𝚄𝙿
 /addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
 /deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
 /listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
@@ -1856,22 +1857,83 @@ bot.onText(/^\/statushare$/, async (msg) => {
 });
 
 // =============================
-// Fitur /backup (Developer saja)
+// Fitur /backup (Developer saja) - backup semua file
 // =============================
-bot.onText(/^\/backup$/, async (msg) => {
-  if (!isDeveloper(msg.from.id)) return; // hanya developer
+const backupFiles = [
+  { path: groupsDB, name: "groups.json" },
+  { path: premiumDB, name: "premium.json" },
+  { path: tempPremiumDB, name: "temp_premium.json" },
+  { path: channelsDB, name: "channels.json" },
+  { path: groupInviterDB, name: "group_inviter.json" },
+  { path: utangDB, name: "utang.json" },
+  { path: payDB, name: "pay.json" },
+  { path: ownerDB, name: "owners.json" },
+  { path: blacklistDB, name: "blacklist.json" },
+  { path: channelBlacklistDB, name: "channel_blacklist.json" },
+  { path: userChannelsDB, name: "user_channels.json" },
+  { path: autoForwardDB, name: "auto_forward.json" },
+  { path: "./bot.js", name: "bot.js" },
+  { path: "./config.js", name: "config.js" },
+  { path: "./package.json", name: "package.json" }
+];
 
-  try {
-    if (!fs.existsSync(groupsDB)) {
-      return bot.sendMessage(msg.chat.id, "<blockquote>❌ File groups.json tidak ditemukan</blockquote>", { parse_mode: "HTML" });
+async function sendBackup(chatId) {
+  let success = 0, failed = 0;
+  for (const file of backupFiles) {
+    try {
+      if (fs.existsSync(file.path)) {
+        await bot.sendDocument(chatId, file.path, {
+          caption: `📦 ${file.name}`,
+          parse_mode: "HTML"
+        });
+        success++;
+      }
+    } catch {
+      failed++;
     }
-
-    await bot.sendDocument(ADMIN_ID, groupsDB, {
-      caption: "<blockquote>📦 Backup file groups.json berhasil dikirim</blockquote>",
-      parse_mode: "HTML"
-    });
-  } catch (err) {
-    console.error("Backup Error:", err);
-    bot.sendMessage(msg.chat.id, "<blockquote>❌ Gagal membuat backup groups.json</blockquote>", { parse_mode: "HTML" });
+    await new Promise(r => setTimeout(r, 300));
   }
+  return { success, failed };
+}
+
+bot.onText(/^\/backup$/, async (msg) => {
+  if (!isDeveloper(msg.from.id)) return;
+
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "<blockquote>📦 Memulai backup semua file...</blockquote>", { parse_mode: "HTML" });
+
+  const { success, failed } = await sendBackup(chatId);
+
+  bot.sendMessage(chatId, `<blockquote>✅ Backup selesai</blockquote>\n<blockquote>📄 Berhasil: ${success} file</blockquote>\n<blockquote>❌ Gagal: ${failed} file</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Auto Backup System
+// =============================
+let autoBackupInterval = null;
+let autoBackupDelay = 20 * 60 * 1000; // default 20 menit
+
+function startAutoBackup() {
+  if (autoBackupInterval) clearInterval(autoBackupInterval);
+  autoBackupInterval = setInterval(async () => {
+    try {
+      await sendBackup(DEVELOPER_ID);
+      bot.sendMessage(DEVELOPER_ID, `<blockquote>🔄 Auto Backup selesai (setiap ${Math.round(autoBackupDelay / 60000)} menit)</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+    } catch {}
+  }, autoBackupDelay);
+}
+
+// Mulai auto backup saat bot start
+startAutoBackup();
+
+// /setbackup [menit] - Developer only, atur interval auto backup
+bot.onText(/^\/setbackup (\d+)$/, (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const minutes = parseInt(match[1]);
+  if (minutes < 1) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Minimal 1 menit</blockquote>", { parse_mode: "HTML" });
+
+  autoBackupDelay = minutes * 60 * 1000;
+  startAutoBackup();
+
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ Auto Backup diatur setiap ${minutes} menit</blockquote>`, { parse_mode: "HTML" });
 });
