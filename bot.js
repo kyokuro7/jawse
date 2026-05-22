@@ -100,6 +100,18 @@ function isPremium(userId) {
   const data = JSON.parse(fs.readFileSync(premiumDB));
   return data.includes(userId);
 }
+
+// Role helper functions
+function isDeveloper(userId) {
+  return userId === DEVELOPER_ID;
+}
+function isOwner(userId) {
+  return userId === ADMIN_ID || userId === DEVELOPER_ID;
+}
+function hasAccess(userId) {
+  // Premium, Owner, or Developer
+  return isPremium(userId) || isOwner(userId);
+}
 function addPremium(userId) {
   const data = JSON.parse(fs.readFileSync(premiumDB));
   if (!data.includes(userId)) {
@@ -387,7 +399,7 @@ bot.on("callback_query", async (query) => {
   const userId = query.from.id;
 
   if (query.data === "verified") {
-    if (isPremium(userId) || userId === ADMIN_ID) {
+    if (hasAccess(userId)) {
       const buttons = [
         [
           { text: "𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁", url: "https://t.me/Jangansoasikdeh" },
@@ -416,7 +428,7 @@ bot.on("callback_query", async (query) => {
     bot.deleteMessage(chatId, query.message.message_id);
     const buttons = [];
     // Tampilkan button Owner jika user adalah Owner atau Developer
-    if (userId === ADMIN_ID || userId === DEVELOPER_ID) {
+    if (isOwner(userId)) {
       buttons.push([{ text: "👑 𝙾𝚆𝙽𝙴𝚁 𝙵𝙸𝚃𝚄𝚁", callback_data: "owner_menu" }]);
     }
     // Tampilkan button Developer jika user adalah Developer
@@ -448,7 +460,7 @@ bot.on("callback_query", async (query) => {
 
     bot.sendPhoto(chatId, logoUrl, {
       caption: `<blockquote>👑 𝗢𝗪𝗡𝗘𝗥 𝗙𝗜𝗧𝗨𝗥</blockquote>
-<blockquote>/addprem [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝚄𝚂𝙴𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
+<blockquote>/addprem [id] [durasi] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙿𝚁𝙴𝙼𝙸𝚄𝙼 (contoh: 30d, 2w, 1m)
 /delprem [id] -> 𝙷𝙰𝙿𝚄𝚂 𝚄𝚂𝙴𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
 /listprem -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
 /addgrupid [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙶𝚁𝚄𝙿 𝙼𝙰𝙽𝚄𝙰𝙻
@@ -499,7 +511,7 @@ bot.on("callback_query", async (query) => {
         { text: "+ 𝙰𝙳𝙳 𝚃𝙾 𝙼𝙴 𝙶𝚁𝙾𝚄𝙿", url: `https://t.me/${(await bot.getMe()).username}?startgroup=true` }
       ],
       [
-        isPremium(userId) || userId === ADMIN_ID
+        hasAccess(userId)
           ? { text: "𝙼𝙴𝙽𝚄 𝙹𝙰𝚂𝙷𝙴𝚁", callback_data: "all_menu" }
           : { text: "𝚅𝙴𝚁𝙸𝙵𝙸𝙴𝙳", callback_data: "verified" }
       ]
@@ -531,10 +543,10 @@ bot.onText(/^\/share$/, async (msg) => {
   const userId = msg.from.id;
 
   if (!msg.reply_to_message) return bot.sendMessage(chatId, "⚠️ Reply pesan untuk /share");
-  if (!(userId === ADMIN_ID || isPremium(userId))) return bot.sendMessage(chatId, "❌ Hanya Admin/Premium yang bisa pakai.");
+  if (!(hasAccess(userId))) return bot.sendMessage(chatId, "❌ Hanya Admin/Premium yang bisa pakai.");
 
   // === Cek cooldown (hanya untuk premium, bukan admin utama) ===
-  if (userId !== ADMIN_ID && isPremium(userId)) { // NEW
+  if (!isOwner(userId) && isPremium(userId)) { // NEW
     const lastUsed = shareCooldown.get(userId);
     const now = Date.now();
     if (lastUsed && now - lastUsed < 30000) { // 30 detik
@@ -590,7 +602,7 @@ bot.onText(/^\/share2$/, async (msg) => {
   const userId = msg.from.id;
 
   if (!msg.reply_to_message) return bot.sendMessage(chatId, "⚠️ Reply pesan untuk /share2");
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Hanya Admin Utama yang bisa pakai.");
+  if (!hasAccess(userId)) return bot.sendMessage(chatId, "❌ Hanya Admin Utama yang bisa pakai.");
 
   const GROUPS = getGroups();
   if (GROUPS.length === 0) return bot.sendMessage(chatId, "📭 Tidak ada grup tersimpan.");
@@ -627,24 +639,61 @@ bot.onText(/^\/share2$/, async (msg) => {
 // =============================
 // Admin commands: add/list premium & groups
 // =============================
-bot.onText(/\/addprem (\d+)/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+bot.onText(/^\/addprem (\d+)\s+(\d+)(d|w|m)$/, (msg, match) => {
+  if (!isOwner(msg.from.id)) return;
   const userId = parseInt(match[1]);
+  const amount = parseInt(match[2]);
+  const unit = match[3];
+
+  let durationSec = 0;
+  let label = "";
+  if (unit === "d") {
+    durationSec = amount * 24 * 60 * 60;
+    label = `${amount} Hari`;
+  } else if (unit === "w") {
+    durationSec = amount * 7 * 24 * 60 * 60;
+    label = `${amount} Minggu`;
+  } else if (unit === "m") {
+    durationSec = amount * 30 * 24 * 60 * 60;
+    label = `${amount} Bulan`;
+  }
+
   addPremium(userId);
-  bot.sendMessage(msg.chat.id, `<blockquote>✅ User ${userId} ditambahkan ke Premium</blockquote>`, { parse_mode: "HTML" });
+  addTempPremiumCustom(userId, durationSec);
+
+  const expiry = new Date(Date.now() + durationSec * 1000).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ User ${userId} ditambahkan ke Premium</blockquote>\n<blockquote>⏳ Durasi: ${label}</blockquote>\n<blockquote>📅 Expired: ${expiry}</blockquote>`, { parse_mode: "HTML" });
 });
 
 bot.onText(/\/listprem/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isOwner(msg.from.id)) return;
   const data = JSON.parse(fs.readFileSync(premiumDB));
-  bot.sendMessage(msg.chat.id, `<blockquote>👤 Premium Users:</blockquote>\n${data.join("\n") || "Kosong"}`, { parse_mode: "HTML" });
+  const tempData = JSON.parse(fs.readFileSync(tempPremiumDB));
+
+  if (data.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada user premium</blockquote>", { parse_mode: "HTML" });
+
+  let listText = "<blockquote>👤 Premium Users:</blockquote>\n";
+  for (const uid of data) {
+    const temp = tempData.find(x => x.userId === uid);
+    if (temp && temp.expireAt) {
+      const expiry = new Date(temp.expireAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+      listText += `<blockquote>• <code>${uid}</code> — Exp: ${expiry}</blockquote>\n`;
+    } else if (temp && temp.addedAt) {
+      listText += `<blockquote>• <code>${uid}</code> — Added: ${new Date(temp.addedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}</blockquote>\n`;
+    } else {
+      listText += `<blockquote>• <code>${uid}</code> — Permanent</blockquote>\n`;
+    }
+  }
+
+  bot.sendMessage(msg.chat.id, listText.trim(), { parse_mode: "HTML" });
 });
 
 // =============================
 // Admin command: delprem
 // =============================
 bot.onText(/\/delprem (\d+)/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isOwner(msg.from.id)) return;
   const userId = parseInt(match[1]);
   removePremium(userId);
   bot.sendMessage(msg.chat.id, `<blockquote>🗑 User ${userId} dihapus dari Premium</blockquote>`, { parse_mode: "HTML" });
@@ -654,7 +703,7 @@ bot.onText(/\/delprem (\d+)/, (msg, match) => {
 // Admin command: addgrupid & delgrupid
 // =============================
 bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isOwner(msg.from.id)) return;
   const groupId = parseInt(match[1]);
   const groups = getGroups();
   if (!groups.includes(groupId)) {
@@ -667,7 +716,7 @@ bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
 });
 
 bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isOwner(msg.from.id)) return;
   const groupId = parseInt(match[1]);
 
   // hapus dari database
@@ -689,7 +738,7 @@ bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
 });
 
 bot.onText(/\/listgroup/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isOwner(msg.from.id)) return;
   const data = getGroups();
   bot.sendMessage(msg.chat.id, `<blockquote>👥 Groups:</blockquote>\n${data.join("\n") || "Kosong"}`, { parse_mode: "HTML" });
 });
@@ -698,7 +747,7 @@ bot.onText(/\/listgroup/, (msg) => {
 // Admin command: bcuser (broadcast ke user Premium)
 // =============================
 bot.onText(/^\/bcuser$/, async (msg) => { // NEW
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!hasAccess(msg.from.id)) return;
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser");
 
   const data = JSON.parse(fs.readFileSync(premiumDB));
@@ -729,7 +778,7 @@ bot.onText(/^\/tourl$/, async (msg) => {
   const userId = msg.from.id;
 
   // ✅ hanya Admin Utama & Premium
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(chatId, `<blockquote>❌ Hanya Admin Utama & Premium yang bisa menggunakan perintah ini.</blockquote>`, { parse_mode: "HTML" });
   }
 
@@ -791,7 +840,7 @@ bot.onText(/^\/tourl$/, async (msg) => {
 // Admin command: sharech (broadcast ke channel)
 // =============================
 bot.onText(/^\/sharech$/, async (msg) => { // NEW
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!hasAccess(msg.from.id)) return;
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /sharech");
 
   const CHANNELS = getChannels();
@@ -832,7 +881,7 @@ bot.onText(/^\/sharech$/, async (msg) => { // NEW
 // =============================
 // /addutang <teks>
 bot.onText(/^\/addutang (.+)/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const text = match[1].trim();
   if (!text) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Teks utang tidak boleh kosong</blockquote>", { parse_mode: "HTML" });
 
@@ -845,7 +894,7 @@ bot.onText(/^\/addutang (.+)/, (msg, match) => {
 
 // /listutang
 bot.onText(/^\/listutang$/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const data = getUtang();
   if (data.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada utang tersimpan</blockquote>", { parse_mode: "HTML" });
 
@@ -859,7 +908,7 @@ bot.onText(/^\/listutang$/, (msg) => {
 
 // /delutang <nomor>
 bot.onText(/^\/delutang (\d+)$/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const index = parseInt(match[1]) - 1;
   let data = getUtang();
 
@@ -878,7 +927,7 @@ bot.onText(/^\/delutang (\d+)$/, (msg, match) => {
 // =============================
 // /addpay namapay,nomer,atasnama
 bot.onText(/^\/addpay (.+)/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const input = match[1].split(",");
   if (input.length < 3) {
     return bot.sendMessage(
@@ -905,7 +954,7 @@ bot.onText(/^\/addpay (.+)/, (msg, match) => {
 
 // /delpay namapay
 bot.onText(/^\/delpay (.+)/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const nama = match[1].trim().toLowerCase();
   let data = getPay();
 
@@ -968,7 +1017,7 @@ bot.onText(/^\/copyweb (.+)$/, async (msg, match) => {
   const targetUrl = (match[1] || "").trim();
 
   // cek admin/premium
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(chatId, "❌ Fitur ini hanya untuk Admin Utama & Premium.");
   }
 
@@ -1056,7 +1105,7 @@ bot.onText(/^\/copyweb (.+)$/, async (msg, match) => {
 
 // /addbl -> hanya admin utama, dipakai di grup
 bot.onText(/^\/addbl$/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return; // ✅ hanya admin utama
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1071,7 +1120,7 @@ bot.onText(/^\/addbl$/, (msg) => {
 
 // /deladdbl -> hanya admin utama, dipakai di grup
 bot.onText(/^\/deladdbl$/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return; // ✅ hanya admin utama
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1092,7 +1141,7 @@ bot.onText(/^\/deladdbl$/, (msg) => {
 
 // /listaddbl -> hanya admin utama
 bot.onText(/^\/listaddbl$/, async (msg) => {
-  if (msg.from.id !== ADMIN_ID) return; // ✅ hanya admin utama
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const data = getBlacklist();
   if (data.length === 0) {
     return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada grup dalam blacklist.</blockquote>", { parse_mode: "HTML" });
@@ -1164,7 +1213,7 @@ async function forwardToAllGroups(message, fromChatId) {
 // /autoshare (premium, owner, developer)
 bot.onText(/^\/autoshare$/, async (msg) => {
   const userId = msg.from.id;
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(msg.chat.id, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
   }
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Harus reply pesan untuk /autoshare</blockquote>", { parse_mode: "HTML" });
@@ -1194,7 +1243,7 @@ bot.onText(/^\/autoshare$/, async (msg) => {
 // /stopauto (premium, owner, developer)
 bot.onText(/^\/stopauto$/, (msg) => {
   const userId = msg.from.id;
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(msg.chat.id, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
   }
   if (!autoShareInterval) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ AutoShare belum aktif.</blockquote>", { parse_mode: "HTML" });
@@ -1209,7 +1258,7 @@ bot.onText(/^\/stopauto$/, (msg) => {
 
 // /setcd <durasi>
 bot.onText(/^\/setcd (.+)$/, (msg, match) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   const input = match[1].trim();
   const ms = parseDuration(input);
   if (!ms) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Format salah.</blockquote>\n<blockquote>Contoh: 30s, 5m, 2h, 1h30m20s</blockquote>", { parse_mode: "HTML" });
@@ -1230,7 +1279,7 @@ bot.onText(/^\/setcd (.+)$/, (msg, match) => {
 
 // /listcd
 bot.onText(/^\/listcd$/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  if (!isDeveloper(msg.from.id)) return;
   bot.sendMessage(
     msg.chat.id,
     `<blockquote>⏳ Cooldown AutoShare sekarang: ${formatDuration(autoShareCooldown)}</blockquote>\n\n` +
@@ -1267,7 +1316,7 @@ bot.onText(/^\/setpesan$/, async (msg) => {
   const userId = msg.from.id;
 
   // Cek akses
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
   }
 
@@ -1296,7 +1345,7 @@ bot.onText(/^\/statushare$/, async (msg) => {
   const userId = msg.from.id;
 
   // Cek akses (premium, owner, developer)
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
+  if (!(hasAccess(userId))) {
     return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
   }
 
@@ -1337,7 +1386,7 @@ bot.onText(/^\/statushare$/, async (msg) => {
 // Fitur /backup (Admin Utama saja)
 // =============================
 bot.onText(/^\/backup$/, async (msg) => {
-  if (msg.from.id !== ADMIN_ID) return; // hanya admin utama
+  if (!isOwner(msg.from.id)) return; // hanya owner
 
   try {
     if (!fs.existsSync(groupsDB)) {
