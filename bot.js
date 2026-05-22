@@ -5,7 +5,7 @@ const axios = require("axios");
 const FormData = require("form-data"); 
 const fetch = require("node-fetch");
 const path = require("path");
-const { TOKEN, ADMIN_ID } = require("./config");
+const { TOKEN, ADMIN_ID, DEVELOPER_ID } = require("./config");
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -414,20 +414,70 @@ bot.on("callback_query", async (query) => {
 
   if (query.data === "all_menu") {
     bot.deleteMessage(chatId, query.message.message_id);
-    const buttons = [[{ text: "⬅ BACK", callback_data: "back" }]];
+    const buttons = [];
+    // Tampilkan button Owner jika user adalah Owner atau Developer
+    if (userId === ADMIN_ID || userId === DEVELOPER_ID) {
+      buttons.push([{ text: "👑 𝙾𝚆𝙽𝙴𝚁 𝙵𝙸𝚃𝚄𝚁", callback_data: "owner_menu" }]);
+    }
+    // Tampilkan button Developer jika user adalah Developer
+    if (userId === DEVELOPER_ID) {
+      buttons.push([{ text: "⚙️ 𝙳𝙴𝚅𝙴𝙻𝙾𝙿𝙴𝚁 𝙵𝙸𝚃𝚄𝚁", callback_data: "dev_menu" }]);
+    }
+    buttons.push([{ text: "⬅ BACK", callback_data: "back" }]);
 
     bot.sendPhoto(chatId, logoUrl, {
       caption: `<blockquote>𝗙𝗜𝗧𝗨𝗥 𝗝𝗔𝗦𝗛𝗘𝗥 𝗠𝗘𝗡𝗨</blockquote>
 <blockquote>/share -> 𝚂𝙷𝙰𝚁𝙴 𝙲𝙾𝙿𝚈 + 𝚂𝙴𝙱𝙰𝚁 
 /share2 -> 𝚂𝙷𝙰𝚁𝙴 𝙵𝙾𝚁𝙴𝚆𝙳 + 𝚂𝙴𝙱𝙰𝚁
 /setpesan -> 𝚂𝙴𝚃 𝙿𝙴𝚂𝙰𝙽 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
-/auto on -> 𝙼𝚄𝙻𝙰𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
-/auto off -> 𝙱𝙴𝚁𝙷𝙴𝙽𝚃𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
-/auto status -> 𝚂𝚃𝙰𝚃𝚄𝚂 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
+/autoshare -> 𝙼𝚄𝙻𝙰𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
+/stopauto -> 𝙱𝙴𝚁𝙷𝙴𝙽𝚃𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
+/statushare -> 𝚂𝚃𝙰𝚃𝚄𝚂 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
 /bcuser -> 𝙵𝙾𝚁𝚆𝙴𝙳 𝙺𝙴 𝙿𝙴𝙽𝙶𝙶𝚄𝙽𝙰 BOT
 /sharech -> 𝙵𝙾𝚁𝚆𝙴𝙳 𝙺𝙴 𝙲𝙷𝙰𝙽𝙴𝙻 𝚃𝙴𝙻𝙴𝙶𝚁𝙰𝙼
 /tourl -> 𝙹𝙰𝙳𝙸𝙺𝙰𝙽 𝙵𝙾𝚃𝙾/𝚅𝙸𝙳𝙴𝙾 𝙹𝙰𝙳𝙸 𝙻𝙸𝙽𝙺
 /copyweb -> 𝙲𝙾𝙿𝚈 𝙷𝚃𝙼𝙻 𝚆𝙴𝙱𝙸𝚂𝚃𝙴 𝚃𝙰𝚁𝙶𝙴𝚃</blockquote>`,
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: buttons }
+    });
+  }
+
+  if (query.data === "owner_menu") {
+    bot.deleteMessage(chatId, query.message.message_id);
+    const buttons = [[{ text: "⬅ BACK", callback_data: "all_menu" }]];
+
+    bot.sendPhoto(chatId, logoUrl, {
+      caption: `<blockquote>👑 𝗢𝗪𝗡𝗘𝗥 𝗙𝗜𝗧𝗨𝗥</blockquote>
+<blockquote>/addprem [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝚄𝚂𝙴𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
+/delprem [id] -> 𝙷𝙰𝙿𝚄𝚂 𝚄𝚂𝙴𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
+/listprem -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
+/addgrupid [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙶𝚁𝚄𝙿 𝙼𝙰𝙽𝚄𝙰𝙻
+/delgrupid [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙶𝚁𝚄𝙿 + 𝙱𝙾𝚃 𝙺𝙴𝙻𝚄𝙰𝚁
+/listgroup -> 𝙻𝙸𝙷𝙰𝚃 𝚂𝙴𝙼𝚄𝙰 𝙶𝚁𝚄𝙿
+/bcuser -> 𝙱𝚁𝙾𝙰𝙳𝙲𝙰𝚂𝚃 𝙺𝙴 𝚄𝚂𝙴𝚁
+/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
+/addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
+/deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
+/listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃</blockquote>`,
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: buttons }
+    });
+  }
+
+  if (query.data === "dev_menu") {
+    bot.deleteMessage(chatId, query.message.message_id);
+    const buttons = [[{ text: "⬅ BACK", callback_data: "all_menu" }]];
+
+    bot.sendPhoto(chatId, logoUrl, {
+      caption: `<blockquote>⚙️ 𝗗𝗘𝗩𝗘𝗟𝗢𝗣𝗘𝗥 𝗙𝗜𝗧𝗨𝗥</blockquote>
+<blockquote>/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
+/listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
+/addpay [nama,nomor,atas nama] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙿𝙰𝚈𝙼𝙴𝙽𝚃
+/delpay [nama] -> 𝙷𝙰𝙿𝚄𝚂 𝙿𝙰𝚈𝙼𝙴𝙽𝚃
+/addutang [teks] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝚄𝚃𝙰𝙽𝙶
+/delutang [nomor] -> 𝙷𝙰𝙿𝚄𝚂 𝚄𝚃𝙰𝙽𝙶
+/listutang -> 𝙻𝙸𝙷𝙰𝚃 𝚄𝚃𝙰𝙽𝙶
+/sharech -> 𝙵𝙾𝚁𝚆𝙰𝚁𝙳 𝙺𝙴 𝙲𝙷𝙰𝙽𝙽𝙴𝙻</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
     });
@@ -1111,9 +1161,12 @@ async function forwardToAllGroups(message, fromChatId) {
   }
 }
 
-// /autoshare
+// /autoshare (premium, owner, developer)
 bot.onText(/^\/autoshare$/, async (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  const userId = msg.from.id;
+  if (!(userId === ADMIN_ID || isPremium(userId))) {
+    return bot.sendMessage(msg.chat.id, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
+  }
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Harus reply pesan untuk /autoshare</blockquote>", { parse_mode: "HTML" });
 
   if (autoShareInterval) {
@@ -1138,9 +1191,12 @@ bot.onText(/^\/autoshare$/, async (msg) => {
   bot.sendMessage(msg.chat.id, `<blockquote>✅ AutoShare dimulai</blockquote>\n<blockquote>⏳ Cooldown antar cycle: ${formatDuration(autoShareCooldown)}</blockquote>`, { parse_mode: "HTML" });
 });
 
-// /stopauto
+// /stopauto (premium, owner, developer)
 bot.onText(/^\/stopauto$/, (msg) => {
-  if (msg.from.id !== ADMIN_ID) return;
+  const userId = msg.from.id;
+  if (!(userId === ADMIN_ID || isPremium(userId))) {
+    return bot.sendMessage(msg.chat.id, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
+  }
   if (!autoShareInterval) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ AutoShare belum aktif.</blockquote>", { parse_mode: "HTML" });
 
   clearInterval(autoShareInterval);
@@ -1232,117 +1288,16 @@ bot.onText(/^\/setpesan$/, async (msg) => {
   bot.sendMessage(chatId, "<blockquote>✅ Pesan berhasil disimpan!\nGunakan /auto on untuk memulai auto forward.</blockquote>", { parse_mode: "HTML" });
 });
 
-// /auto on - mulai auto forward
-bot.onText(/^\/auto on$/, async (msg) => {
+// /auto on & /auto off sudah dihapus - gunakan /autoshare dan /stopauto
+
+// /statushare - tampilkan status auto forward
+bot.onText(/^\/statushare$/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
-  // Cek akses
+  // Cek akses (premium, owner, developer)
   if (!(userId === ADMIN_ID || isPremium(userId))) {
-    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Cek apakah sudah setpesan
-  const data = getAutoForwardData();
-  if (!data[userId] || !data[userId].messageId) {
-    return bot.sendMessage(chatId, "<blockquote>⚠️ Kamu belum /setpesan!\nReply pesan lalu ketik /setpesan terlebih dahulu.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Cek apakah sudah aktif
-  if (autoForwardIntervals.has(userId)) {
-    return bot.sendMessage(chatId, "<blockquote>⚠️ Auto Forward kamu sudah aktif.\nKetik /auto off untuk menghentikan.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Set active
-  data[userId].active = true;
-  saveAutoForwardData(data);
-
-  // State putaran
-  autoForwardState.set(userId, { putaran: 0, running: false, startedAt: Date.now() });
-
-  // Fungsi forward 1 putaran
-  const runCycle = async () => {
-    const state = autoForwardState.get(userId);
-    if (!state || state.running) return;
-    state.running = true;
-
-    const currentData = getAutoForwardData();
-    if (!currentData[userId] || !currentData[userId].active) {
-      state.running = false;
-      return;
-    }
-
-    state.putaran++;
-    const GROUPS = getGroups();
-    let success = 0, failed = 0;
-
-    for (const gid of GROUPS) {
-      if (isBlacklisted(gid)) continue;
-      try {
-        await bot.forwardMessage(gid, currentData[userId].fromChatId, currentData[userId].messageId);
-        success++;
-      } catch {
-        failed++;
-      }
-      // Delay kecil supaya tidak kena rate limit
-      await new Promise(r => setTimeout(r, 100));
-    }
-
-    // Kirim laporan putaran
-    const report = `<blockquote><b>AUTO FORWARD ON</b>\nTarget : ${GROUPS.length} grup\nPutaran : ${state.putaran}\nBerhasil : ${success} grup\nGagal : ${failed} grup</blockquote>\n\n<i>Ketik /auto off untuk berhenti.</i>`;
-    bot.sendMessage(chatId, report, { parse_mode: "HTML" }).catch(() => {});
-
-    state.running = false;
-  };
-
-  // Jalankan pertama kali langsung
-  await runCycle();
-
-  // Jalankan setiap 10 menit
-  const intervalId = setInterval(runCycle, 10 * 60 * 1000);
-  autoForwardIntervals.set(userId, intervalId);
-
-  bot.sendMessage(chatId, "<blockquote>✅ Auto Forward dimulai!\n⏳ Putaran berikutnya dalam 10 menit.</blockquote>", { parse_mode: "HTML" });
-});
-
-// /auto off - hentikan auto forward
-bot.onText(/^\/auto off$/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  // Cek akses
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
-    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Cek apakah memang aktif
-  if (!autoForwardIntervals.has(userId)) {
-    return bot.sendMessage(chatId, "<blockquote>⚠️ Auto Forward kamu belum aktif.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Stop interval
-  clearInterval(autoForwardIntervals.get(userId));
-  autoForwardIntervals.delete(userId);
-  autoForwardState.delete(userId);
-
-  // Update database
-  const data = getAutoForwardData();
-  if (data[userId]) {
-    data[userId].active = false;
-    saveAutoForwardData(data);
-  }
-
-  bot.sendMessage(chatId, "<blockquote>🛑 Auto Forward berhasil dihentikan.</blockquote>", { parse_mode: "HTML" });
-});
-
-// /auto status - tampilkan status auto forward
-bot.onText(/^\/auto status$/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  // Cek akses
-  if (!(userId === ADMIN_ID || isPremium(userId))) {
-    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
+    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium/Developer yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
   }
 
   const data = getAutoForwardData();
