@@ -696,7 +696,14 @@ bot.on("callback_query", async (query) => {
 <blockquote>/addprem [id] [durasi] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙿𝚁𝙴𝙼𝙸𝚄𝙼 (contoh: 30d, 2w, 1m)
 /delprem [id] -> 𝙷𝙰𝙿𝚄𝚂 𝚄𝚂𝙴𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
 /listprem -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙿𝚁𝙴𝙼𝙸𝚄𝙼
+/addgrupid [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙶𝚁𝚄𝙿 𝙼𝙰𝙽𝚄𝙰𝙻
+/delgrupid [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙶𝚁𝚄𝙿 + 𝙱𝙾𝚃 𝙺𝙴𝙻𝚄𝙰𝚁
+/listgroup -> 𝙻𝙸𝙷𝙰𝚃 𝚂𝙴𝙼𝚄𝙰 𝙶𝚁𝚄𝙿
 /bcuser -> 𝙱𝚁𝙾𝙰𝙳𝙲𝙰𝚂𝚃 𝙺𝙴 𝚄𝚂𝙴𝚁
+/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
+/addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
+/deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
+/listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
 /addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃</blockquote>`,
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: buttons }
@@ -712,13 +719,6 @@ bot.on("callback_query", async (query) => {
 <blockquote>/addowner [id] [durasi] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙾𝚆𝙽𝙴𝚁 (contoh: 5h, 7d, 1m)
 /delowner [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙾𝚆𝙽𝙴𝚁
 /listowner -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙾𝚆𝙽𝙴𝚁
-/addgrupid [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙶𝚁𝚄𝙿 𝙼𝙰𝙽𝚄𝙰𝙻
-/delgrupid [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙶𝚁𝚄𝙿 + 𝙱𝙾𝚃 𝙺𝙴𝙻𝚄𝙰𝚁
-/listgroup -> 𝙻𝙸𝙷𝙰𝚃 𝚂𝙴𝙼𝚄𝙰 𝙶𝚁𝚄𝙿
-/backup -> 𝙱𝙰𝙲𝙺𝚄𝙿 𝙶𝚁𝙾𝚄𝙿𝚂.𝙹𝚂𝙾𝙽
-/addbl -> 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃 𝙶𝚁𝚄𝙿
-/deladdbl -> 𝙷𝙰𝙿𝚄𝚂 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
-/listaddbl -> 𝙻𝙸𝙷𝙰𝚃 𝙱𝙻𝙰𝙲𝙺𝙻𝙸𝚂𝚃
 /setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙳𝙴𝙻𝙰𝚈 𝙻𝙾𝙾𝙿𝙸𝙽𝙶 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
 /listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙴𝙻𝙰𝚈 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
 /addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃
@@ -964,10 +964,10 @@ bot.onText(/\/delprem (\d+)/, (msg, match) => {
 });
 
 // =============================
-// Developer command: addgrupid & delgrupid
+// Admin command: addgrupid & delgrupid
 // =============================
 bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
-  if (!isDeveloper(msg.from.id)) return;
+  if (!isOwner(msg.from.id)) return;
   const groupId = parseInt(match[1]);
   const groups = getGroups();
   if (!groups.includes(groupId)) {
@@ -980,7 +980,7 @@ bot.onText(/\/addgrupid (-?\d+)/, (msg, match) => { // NEW
 });
 
 bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
-  if (!isDeveloper(msg.from.id)) return;
+  if (!isOwner(msg.from.id)) return;
   const groupId = parseInt(match[1]);
 
   // hapus dari database
@@ -1002,7 +1002,7 @@ bot.onText(/\/delgrupid (-?\d+)/, async (msg, match) => { // NEW
 });
 
 bot.onText(/\/listgroup/, (msg) => {
-  if (!isDeveloper(msg.from.id)) return;
+  if (!isOwner(msg.from.id)) return;
   const data = getGroups();
   bot.sendMessage(msg.chat.id, `<blockquote>👥 Groups:</blockquote>\n${data.join("\n") || "Kosong"}`, { parse_mode: "HTML" });
 });
@@ -1528,12 +1528,12 @@ bot.onText(/^\/copyweb (.+)$/, async (msg, match) => {
 });
 
 // =============================
-// Developer command: add/del/list blacklist group
+// Admin command: add/del/list blacklist group
 // =============================
 
-// /addbl -> hanya developer, dipakai di grup
+// /addbl -> hanya admin utama, dipakai di grup
 bot.onText(/^\/addbl$/, (msg) => {
-  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1546,9 +1546,9 @@ bot.onText(/^\/addbl$/, (msg) => {
   bot.sendMessage(ADMIN_ID, `<blockquote>🚫 Grup masuk blacklist</blockquote>\n<blockquote>👥 ${esc(msg.chat.title || "Unknown Group")}</blockquote>\n<blockquote>🆔 <code>${chatId}</code></blockquote>`, { parse_mode: "HTML" });
 });
 
-// /deladdbl -> hanya developer, dipakai di grup
+// /deladdbl -> hanya admin utama, dipakai di grup
 bot.onText(/^\/deladdbl$/, (msg) => {
-  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const chatId = msg.chat.id;
   if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
     return bot.sendMessage(chatId, "<blockquote>⚠️ Perintah ini hanya bisa digunakan di grup.</blockquote>", { parse_mode: "HTML" });
@@ -1567,9 +1567,9 @@ bot.onText(/^\/deladdbl$/, (msg) => {
   }
 });
 
-// /listaddbl -> hanya developer
+// /listaddbl -> hanya admin utama
 bot.onText(/^\/listaddbl$/, async (msg) => {
-  if (!isDeveloper(msg.from.id)) return; // ✅ hanya developer
+  if (!isOwner(msg.from.id)) return; // ✅ hanya owner
   const data = getBlacklist();
   if (data.length === 0) {
     return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada grup dalam blacklist.</blockquote>", { parse_mode: "HTML" });
@@ -1856,10 +1856,10 @@ bot.onText(/^\/statushare$/, async (msg) => {
 });
 
 // =============================
-// Fitur /backup (Developer saja)
+// Fitur /backup (Admin Utama saja)
 // =============================
 bot.onText(/^\/backup$/, async (msg) => {
-  if (!isDeveloper(msg.from.id)) return; // hanya developer
+  if (!isOwner(msg.from.id)) return; // hanya owner
 
   try {
     if (!fs.existsSync(groupsDB)) {
