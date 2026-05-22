@@ -674,7 +674,6 @@ bot.on("callback_query", async (query) => {
       caption: `<blockquote>𝗙𝗜𝗧𝗨𝗥 𝗝𝗔𝗦𝗛𝗘𝗥 𝗠𝗘𝗡𝗨</blockquote>
 <blockquote>/share -> 𝚂𝙷𝙰𝚁𝙴 𝙲𝙾𝙿𝚈 + 𝚂𝙴𝙱𝙰𝚁 
 /share2 -> 𝚂𝙷𝙰𝚁𝙴 𝙵𝙾𝚁𝙴𝚆𝙳 + 𝚂𝙴𝙱𝙰𝚁
-/setpesan -> 𝚂𝙴𝚃 𝙿𝙴𝚂𝙰𝙽 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
 /autoshare -> 𝙼𝚄𝙻𝙰𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
 /stopauto -> 𝙱𝙴𝚁𝙷𝙴𝙽𝚃𝙸 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
 /statushare -> 𝚂𝚃𝙰𝚃𝚄𝚂 𝙰𝚄𝚃𝙾 𝙵𝙾𝚁𝚆𝙰𝚁𝙳
@@ -720,8 +719,8 @@ bot.on("callback_query", async (query) => {
 <blockquote>/addowner [id] [durasi] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙾𝚆𝙽𝙴𝚁 (contoh: 5h, 7d, 1m)
 /delowner [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙾𝚆𝙽𝙴𝚁
 /listowner -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙾𝚆𝙽𝙴𝚁
-/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
-/listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
+/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙳𝙴𝙻𝙰𝚈 𝙻𝙾𝙾𝙿𝙸𝙽𝙶 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
+/listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙴𝙻𝙰𝚈 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
 /addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃
 /listch -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴
 /delch [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙲𝙷𝙰𝙽𝙽𝙴𝙻
@@ -1595,7 +1594,8 @@ bot.onText(/^\/listaddbl$/, async (msg) => {
 // AUTO SHARE SYSTEM
 // =============================
 let autoShareInterval = null;
-let autoShareCooldown = 60000; // default 1 menit
+let autoShareCooldown = 60000; // default 1 menit (delay antar looping/cycle)
+let autoShareGroupDelay = 500; // default 500ms (delay antar grup)
 let autoShareMessage = null;
 let autoShareRunning = false; // biar tidak tabrakan dengan /share2
 
@@ -1636,6 +1636,7 @@ async function forwardToAllGroups(message, fromChatId) {
     try {
       await bot.forwardMessage(gid, fromChatId, message.message_id);
     } catch {}
+    await new Promise(r => setTimeout(r, autoShareGroupDelay)); // delay antar grup
   }
 }
 
@@ -1685,7 +1686,7 @@ bot.onText(/^\/stopauto$/, (msg) => {
   bot.sendMessage(msg.chat.id, "<blockquote>🛑 AutoShare dihentikan.</blockquote>", { parse_mode: "HTML" });
 });
 
-// /setcd <durasi>
+// /setcd <durasi> - atur delay antar looping/cycle autoshare
 bot.onText(/^\/setcd (.+)$/, (msg, match) => {
   if (!isDeveloper(msg.from.id)) return;
   const input = match[1].trim();
@@ -1703,7 +1704,7 @@ bot.onText(/^\/setcd (.+)$/, (msg, match) => {
     }, autoShareCooldown);
   }
 
-  bot.sendMessage(msg.chat.id, `<blockquote>✅ Cooldown AutoShare diatur ke ${formatDuration(ms)}</blockquote>`, { parse_mode: "HTML" });
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ Delay looping AutoShare diatur ke ${formatDuration(ms)}</blockquote>\n<blockquote>📌 Delay antar grup: ${autoShareGroupDelay}ms</blockquote>`, { parse_mode: "HTML" });
 });
 
 // /listcd
@@ -1711,7 +1712,8 @@ bot.onText(/^\/listcd$/, (msg) => {
   if (!isDeveloper(msg.from.id)) return;
   bot.sendMessage(
     msg.chat.id,
-    `<blockquote>⏳ Cooldown AutoShare sekarang: ${formatDuration(autoShareCooldown)}</blockquote>\n\n` +
+    `<blockquote>⏳ Delay looping AutoShare: ${formatDuration(autoShareCooldown)}</blockquote>\n` +
+    `<blockquote>📌 Delay antar grup: ${autoShareGroupDelay}ms</blockquote>\n\n` +
     `<blockquote>Cara pakai:</blockquote>\n` +
     `<blockquote>/setcd 30s → 30 detik</blockquote>\n` +
     `<blockquote>/setcd 5m → 5 menit</blockquote>\n` +
@@ -1808,34 +1810,7 @@ function saveAutoForwardData(data) {
 const autoForwardIntervals = new Map(); // userId -> intervalId
 const autoForwardState = new Map(); // userId -> { putaran, running, startedAt }
 
-// /setpesan - user reply pesan untuk disimpan
-bot.onText(/^\/setpesan$/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  // Cek akses
-  if (!(hasAccess(userId))) {
-    return bot.sendMessage(chatId, "<blockquote>❌ Hanya Owner/Premium yang bisa menggunakan fitur ini.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  if (!msg.reply_to_message) {
-    return bot.sendMessage(chatId, "<blockquote>⚠️ Reply pesan yang ingin di-forward otomatis.</blockquote>", { parse_mode: "HTML" });
-  }
-
-  // Simpan data pesan ke database
-  const data = getAutoForwardData();
-  data[userId] = {
-    messageId: msg.reply_to_message.message_id,
-    fromChatId: chatId,
-    setAt: new Date().toISOString(),
-    active: data[userId] ? data[userId].active : false
-  };
-  saveAutoForwardData(data);
-
-  bot.sendMessage(chatId, "<blockquote>✅ Pesan berhasil disimpan!\nGunakan /auto on untuk memulai auto forward.</blockquote>", { parse_mode: "HTML" });
-});
-
-// /auto on & /auto off sudah dihapus - gunakan /autoshare dan /stopauto
+// /setpesan dihapus - gunakan /autoshare langsung dengan reply pesan
 
 // /statushare - tampilkan status auto forward
 bot.onText(/^\/statushare$/, async (msg) => {
