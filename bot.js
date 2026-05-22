@@ -1119,14 +1119,32 @@ bot.onText(/^\/bcuser$/, async (msg) => {
   if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user terdaftar.");
 
   const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+  const useHeader = isFreePremium(msg.from.id); // hanya premium gratisan yang pakai header (tanpa watermark)
+
+  const replyMsg = msg.reply_to_message;
+  const isTextOnly = !replyMsg.photo && !replyMsg.video && !replyMsg.document && !replyMsg.audio && !replyMsg.voice && !replyMsg.video_note && !replyMsg.sticker && !replyMsg.animation;
 
   let success = 0, failed = 0;
   for (const userId of data) {
     try {
-      // Kirim pesan "dari @username" di atas
-      await bot.sendMessage(userId, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
-      // Copy pesan (bukan forward) menggunakan copyMessage
-      await bot.copyMessage(userId, msg.chat.id, msg.reply_to_message.message_id);
+      if (useHeader) {
+        // Premium gratisan: 1 pesan gabungan (header + konten, TANPA watermark)
+        if (isTextOnly) {
+          const originalText = replyMsg.text || "";
+          const combinedText = `pesan dari ${esc(senderUsername)}\n\n${esc(originalText)}`;
+          await bot.sendMessage(userId, combinedText, { parse_mode: "HTML" });
+        } else {
+          const originalCaption = replyMsg.caption || "";
+          const newCaption = `pesan dari ${esc(senderUsername)}\n\n${esc(originalCaption)}`;
+          await bot.copyMessage(userId, msg.chat.id, replyMsg.message_id, {
+            caption: newCaption,
+            parse_mode: "HTML"
+          });
+        }
+      } else {
+        // Owner/Developer/Manual Premium: copyMessage biasa tanpa header
+        await bot.copyMessage(userId, msg.chat.id, replyMsg.message_id);
+      }
       success++;
     } catch {
       failed++;
@@ -1781,14 +1799,25 @@ function formatDuration(ms) {
 // Fungsi forward/copy ke semua grup (dengan opsi watermark)
 async function forwardToAllGroups(message, fromChatId, useWatermark = false, senderUsername = "", botUsername = "") {
   const GROUPS = getGroups();
+  const isTextOnly = !message.photo && !message.video && !message.document && !message.audio && !message.voice && !message.video_note && !message.sticker && !message.animation;
+
   for (const gid of GROUPS) {
     if (isBlacklisted(gid)) continue;
     try {
       if (useWatermark) {
-        // Premium gratisan: watermark di atas + copyMessage + watermark di bawah
-        await bot.sendMessage(gid, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
-        await bot.copyMessage(gid, fromChatId, message.message_id);
-        await bot.sendMessage(gid, `<blockquote>jasher by @${botUsername}</blockquote>`, { parse_mode: "HTML" });
+        // Premium gratisan: 1 pesan gabungan (header + konten + footer watermark)
+        if (isTextOnly) {
+          const originalText = message.text || "";
+          const combinedText = `pesan dari ${esc(senderUsername)}\n\n${esc(originalText)}\n\n<blockquote>jasher by @${botUsername}</blockquote>`;
+          await bot.sendMessage(gid, combinedText, { parse_mode: "HTML" });
+        } else {
+          const originalCaption = message.caption || "";
+          const newCaption = `pesan dari ${esc(senderUsername)}\n\n${esc(originalCaption)}\n\n<blockquote>jasher by @${botUsername}</blockquote>`;
+          await bot.copyMessage(gid, fromChatId, message.message_id, {
+            caption: newCaption,
+            parse_mode: "HTML"
+          });
+        }
       } else {
         // Owner/Developer/Manual Premium: forward tanpa watermark
         await bot.forwardMessage(gid, fromChatId, message.message_id);
