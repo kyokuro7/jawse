@@ -22,6 +22,8 @@ const utangDB = "./utang.json";
 if (!fs.existsSync(utangDB)) fs.writeFileSync(utangDB, JSON.stringify([]));
 const payDB = "./pay.json";
 if (!fs.existsSync(payDB)) fs.writeFileSync(payDB, JSON.stringify([]));
+const ownerDB = "./owners.json";
+if (!fs.existsSync(ownerDB)) fs.writeFileSync(ownerDB, JSON.stringify([]));
 const blacklistDB = "./blacklist.json";
 if (!fs.existsSync(blacklistDB)) fs.writeFileSync(blacklistDB, JSON.stringify([]));
 
@@ -37,6 +39,34 @@ function addBlacklist(groupId) {
 }
 function isBlacklisted(groupId) {
   return getBlacklist().includes(groupId);
+}
+
+// Owner database helpers
+function getOwners() {
+  return JSON.parse(fs.readFileSync(ownerDB));
+}
+function saveOwners(data) {
+  fs.writeFileSync(ownerDB, JSON.stringify(data, null, 2));
+}
+function addOwnerToDB(userId, durationSec) {
+  const data = getOwners();
+  const expireAt = new Date(Date.now() + durationSec * 1000).toISOString();
+  const existing = data.find(x => x.userId === userId);
+  if (existing) {
+    existing.expireAt = expireAt;
+  } else {
+    data.push({ userId, expireAt });
+  }
+  saveOwners(data);
+}
+function removeOwnerFromDB(userId) {
+  let data = getOwners();
+  data = data.filter(x => x.userId !== userId);
+  saveOwners(data);
+}
+function isOwnerFromDB(userId) {
+  const data = getOwners();
+  return data.some(x => x.userId === userId);
 }
 
 function getPay() {
@@ -152,7 +182,7 @@ function isDeveloper(userId) {
   return userId === DEVELOPER_ID;
 }
 function isOwner(userId) {
-  return userId === ADMIN_ID || userId === DEVELOPER_ID;
+  return userId === ADMIN_ID || userId === DEVELOPER_ID || isOwnerFromDB(userId);
 }
 function hasAccess(userId) {
   // Premium, Owner, or Developer
@@ -230,6 +260,24 @@ async function checkTempPremium() {
   }
 }
 setInterval(checkTempPremium, 10 * 60 * 1000);
+
+// Check expired owners
+async function checkExpiredOwners() {
+  const data = getOwners();
+  const now = new Date();
+  let changed = false;
+  for (const item of data) {
+    if (item.expireAt && new Date(item.expireAt) <= now) {
+      changed = true;
+      bot.sendMessage(item.userId, "<blockquote>⚠️ Akses Owner kamu sudah berakhir.</blockquote>", { parse_mode: "HTML" }).catch(() => {});
+    }
+  }
+  if (changed) {
+    const filtered = data.filter(x => new Date(x.expireAt) > now);
+    saveOwners(filtered);
+  }
+}
+setInterval(checkExpiredOwners, 10 * 60 * 1000);
 
 const esc = (v) => String(v ?? "")
   .replace(/&/g, "&amp;")
@@ -669,7 +717,10 @@ bot.on("callback_query", async (query) => {
 
     bot.sendPhoto(chatId, logoUrl, {
       caption: `<blockquote>⚙️ 𝗗𝗘𝗩𝗘𝗟𝗢𝗣𝗘𝗥 𝗙𝗜𝗧𝗨𝗥</blockquote>
-<blockquote>/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
+<blockquote>/addowner [id] [durasi] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙾𝚆𝙽𝙴𝚁 (contoh: 5h, 7d, 1m)
+/delowner [id] -> 𝙷𝙰𝙿𝚄𝚂 𝙾𝚆𝙽𝙴𝚁
+/listowner -> 𝙻𝙸𝙷𝙰𝚃 𝙳𝙰𝙵𝚃𝙰𝚁 𝙾𝚆𝙽𝙴𝚁
+/setcd [durasi] -> 𝙰𝚃𝚄𝚁 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝙰𝚄𝚃𝙾𝚂𝙷𝙰𝚁𝙴
 /listcd -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙾𝙾𝙻𝙳𝙾𝚆𝙽 𝚂𝙴𝙺𝙰𝚁𝙰𝙽𝙶
 /addch [id] -> 𝚃𝙰𝙼𝙱𝙰𝙷 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙱𝙾𝚃
 /listch -> 𝙻𝙸𝙷𝙰𝚃 𝙲𝙷𝙰𝙽𝙽𝙴𝙻 𝙳𝙰𝚃𝙰𝙱𝙰𝚂𝙴
@@ -1669,6 +1720,75 @@ bot.onText(/^\/listcd$/, (msg) => {
     `<blockquote>/setcd 1h30m20s → 1 jam 30 menit 20 detik</blockquote>`,
     { parse_mode: "HTML" }
   );
+});
+
+// =============================
+// OWNER MANAGEMENT (Developer only)
+// =============================
+
+// /addowner [id] [durasi] - contoh: /addowner 12345 5h, /addowner 12345 7d, /addowner 12345 1m
+bot.onText(/^\/addowner (\d+)\s+(\d+)(h|d|m)$/, (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const targetId = parseInt(match[1]);
+  const amount = parseInt(match[2]);
+  const unit = match[3];
+
+  let durationSec = 0;
+  let label = "";
+  if (unit === "h") {
+    durationSec = amount * 60 * 60;
+    label = `${amount} Jam`;
+  } else if (unit === "d") {
+    durationSec = amount * 24 * 60 * 60;
+    label = `${amount} Hari`;
+  } else if (unit === "m") {
+    durationSec = amount * 30 * 24 * 60 * 60;
+    label = `${amount} Bulan`;
+  }
+
+  addOwnerToDB(targetId, durationSec);
+
+  const expiry = new Date(Date.now() + durationSec * 1000).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ User <code>${targetId}</code> ditambahkan sebagai Owner</blockquote>\n<blockquote>⏳ Durasi: ${label}</blockquote>\n<blockquote>📅 Expired: ${expiry}</blockquote>`, { parse_mode: "HTML" });
+
+  // Notif ke user yang ditambahkan
+  bot.sendMessage(targetId, `<blockquote>🎉 Kamu mendapatkan akses Owner selama ${label}!</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+});
+
+// /delowner [id]
+bot.onText(/^\/delowner (\d+)$/, (msg, match) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const targetId = parseInt(match[1]);
+
+  if (!isOwnerFromDB(targetId)) {
+    return bot.sendMessage(msg.chat.id, `<blockquote>❌ User <code>${targetId}</code> tidak ditemukan di daftar Owner.</blockquote>`, { parse_mode: "HTML" });
+  }
+
+  removeOwnerFromDB(targetId);
+  bot.sendMessage(msg.chat.id, `<blockquote>🗑 User <code>${targetId}</code> dihapus dari Owner.</blockquote>`, { parse_mode: "HTML" });
+
+  // Notif ke user
+  bot.sendMessage(targetId, "<blockquote>⚠️ Akses Owner kamu telah dicabut.</blockquote>", { parse_mode: "HTML" }).catch(() => {});
+});
+
+// /listowner
+bot.onText(/^\/listowner$/, (msg) => {
+  if (!isDeveloper(msg.from.id)) return;
+  const data = getOwners();
+
+  if (data.length === 0) {
+    return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada Owner terdaftar.</blockquote>", { parse_mode: "HTML" });
+  }
+
+  let listText = "<blockquote>👑 DAFTAR OWNER</blockquote>\n\n";
+  for (const item of data) {
+    const expiry = new Date(item.expireAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+    listText += `<blockquote>• <code>${item.userId}</code> — Exp: ${expiry}</blockquote>\n`;
+  }
+  listText += `\n<blockquote>📊 Total: ${data.length} owner</blockquote>`;
+
+  bot.sendMessage(msg.chat.id, listText.trim(), { parse_mode: "HTML" });
 });
 
 // =============================
