@@ -26,6 +26,8 @@ const ownerDB = "./owners.json";
 if (!fs.existsSync(ownerDB)) fs.writeFileSync(ownerDB, JSON.stringify([]));
 const blacklistDB = "./blacklist.json";
 if (!fs.existsSync(blacklistDB)) fs.writeFileSync(blacklistDB, JSON.stringify([]));
+const usersDB = "./users.json";
+if (!fs.existsSync(usersDB)) fs.writeFileSync(usersDB, JSON.stringify([]));
 
 function getBlacklist() {
   return JSON.parse(fs.readFileSync(blacklistDB));
@@ -39,6 +41,18 @@ function addBlacklist(groupId) {
 }
 function isBlacklisted(groupId) {
   return getBlacklist().includes(groupId);
+}
+
+// Users database helpers
+function getAllUsers() {
+  return JSON.parse(fs.readFileSync(usersDB));
+}
+function addUser(userId) {
+  const data = getAllUsers();
+  if (!data.includes(userId)) {
+    data.push(userId);
+    fs.writeFileSync(usersDB, JSON.stringify(data, null, 2));
+  }
 }
 
 // Owner database helpers
@@ -457,6 +471,9 @@ bot.onText(/^\/start$/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
+
+  // Simpan user ke database
+  addUser(userId);
 
   // Cek wajib join channel/grup (skip untuk developer)
   if (!isDeveloper(userId)) {
@@ -1008,27 +1025,100 @@ bot.onText(/\/listgroup/, (msg) => {
 });
 
 // =============================
-// Admin command: bcuser (broadcast ke user Premium)
+// Admin command: bcuser (broadcast ke semua user yang pernah /start)
 // =============================
-bot.onText(/^\/bcuser$/, async (msg) => { // NEW
+
+// /bcuser -> copyMessage + teks "dari @username" di atas pesan (semua yang punya akses)
+bot.onText(/^\/bcuser$/, async (msg) => {
   if (!hasAccess(msg.from.id)) return;
-  if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser");
+  if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Reply pesan untuk /bcuser</blockquote>", { parse_mode: "HTML" });
 
-  const data = JSON.parse(fs.readFileSync(premiumDB));
-  if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user premium terdaftar.");
+  const data = getAllUsers();
+  if (data.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada user terdaftar.</blockquote>", { parse_mode: "HTML" });
 
+  const senderName = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
   let success = 0, failed = 0;
-  for (const userId of data) {
+
+  for (const uid of data) {
     try {
-      await bot.forwardMessage(userId, msg.chat.id, msg.reply_to_message.message_id);
+      // Kirim teks "dari @username" dulu
+      await bot.sendMessage(uid, `<blockquote>📢 dari ${esc(senderName)}</blockquote>`, { parse_mode: "HTML" });
+      // Lalu copy pesan (tanpa forwarded from)
+      await bot.copyMessage(uid, msg.chat.id, msg.reply_to_message.message_id);
       success++;
     } catch {
       failed++;
     }
-    await new Promise(r => setTimeout(r, 200)); // beri jeda kecil biar aman
+    await new Promise(r => setTimeout(r, 200));
   }
 
   bot.sendMessage(msg.chat.id, `<blockquote>📢 Broadcast selesai</blockquote>
+<blockquote>✅ Berhasil: ${success}</blockquote>
+<blockquote>❌ Gagal: ${failed}</blockquote>
+<blockquote>👤 Total: ${data.length}</blockquote>`, { parse_mode: "HTML" });
+});
+
+// /bcuser2 -> pilih forward atau not forward (hanya premium yang di-add manual, owner, developer)
+bot.onText(/^\/bcuser2$/, async (msg) => {
+  const userId = msg.from.id;
+  // Hanya premium (yang di-add), owner, atau developer
+  if (!isOwner(userId) && !isPremium(userId)) return;
+  if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "<blockquote>⚠️ Reply pesan untuk /bcuser2</blockquote>", { parse_mode: "HTML" });
+
+  const buttons = [
+    [
+      { text: "📤 Forward", callback_data: `bc2_forward_${msg.reply_to_message.message_id}` },
+      { text: "🔒 Not Forward", callback_data: `bc2_noforward_${msg.reply_to_message.message_id}` }
+    ]
+  ];
+
+  bot.sendMessage(msg.chat.id, "<blockquote>Pilih metode broadcast:</blockquote>\n<blockquote>📤 Forward = ada tulisan 'Forwarded from'</blockquote>\n<blockquote>🔒 Not Forward = anonim, tanpa 'Forwarded from'</blockquote>", {
+    parse_mode: "HTML",
+    reply_markup: { inline_keyboard: buttons }
+  });
+});
+
+// Handler callback untuk /bcuser2
+bot.on("callback_query", async (query) => {
+  if (!query.data.startsWith("bc2_")) return;
+
+  const chatId = query.message.chat.id;
+  const userId = query.from.id;
+
+  // Cek akses
+  if (!isOwner(userId) && !isPremium(userId)) {
+    return bot.answerCallbackQuery(query.id, { text: "❌ Tidak punya akses", show_alert: true });
+  }
+
+  const parts = query.data.split("_");
+  const mode = parts[1]; // "forward" atau "noforward"
+  const msgId = parseInt(parts[2]);
+
+  await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+  bot.answerCallbackQuery(query.id, { text: "⏳ Memulai broadcast..." });
+
+  const data = getAllUsers();
+  if (data.length === 0) return bot.sendMessage(chatId, "<blockquote>📭 Tidak ada user terdaftar.</blockquote>", { parse_mode: "HTML" });
+
+  let success = 0, failed = 0;
+
+  for (const uid of data) {
+    try {
+      if (mode === "forward") {
+        await bot.forwardMessage(uid, chatId, msgId);
+      } else {
+        await bot.copyMessage(uid, chatId, msgId);
+      }
+      success++;
+    } catch {
+      failed++;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  const modeText = mode === "forward" ? "Forward (dengan nama)" : "Not Forward (anonim)";
+  bot.sendMessage(chatId, `<blockquote>📢 Broadcast selesai</blockquote>
+<blockquote>📌 Mode: ${modeText}</blockquote>
 <blockquote>✅ Berhasil: ${success}</blockquote>
 <blockquote>❌ Gagal: ${failed}</blockquote>
 <blockquote>👤 Total: ${data.length}</blockquote>`, { parse_mode: "HTML" });
