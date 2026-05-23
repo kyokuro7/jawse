@@ -1094,10 +1094,28 @@ bot.onText(/\/listgroup/, (msg) => {
 });
 
 // =============================
+// Cooldown /bcuser untuk premium gratisan (1 jam)
+// =============================
+const bcuserCooldown = {}; // { userId: lastUsedTimestamp }
+const BCUSER_COOLDOWN_MS = 60 * 60 * 1000; // 1 jam dalam milidetik
+
+// =============================
 // Admin command: bcuser (broadcast ke SEMUA user di users.json)
 // =============================
 bot.onText(/^\/bcuser$/, async (msg) => {
-  if (!hasAccess(msg.from.id)) return;
+  const userId = msg.from.id;
+  if (!hasAccess(userId)) return;
+
+  // Cek cooldown untuk premium gratisan (yang add bot ke grup)
+  if (isFreePremium(userId)) {
+    const lastUsed = bcuserCooldown[userId] || 0;
+    const elapsed = Date.now() - lastUsed;
+    if (elapsed < BCUSER_COOLDOWN_MS) {
+      const sisaMenit = Math.ceil((BCUSER_COOLDOWN_MS - elapsed) / 60000);
+      return bot.sendMessage(msg.chat.id, `<blockquote>⏳ Kamu harus menunggu ${sisaMenit} menit lagi sebelum bisa menggunakan /bcuser.\n\n(Cooldown 1 jam untuk premium gratisan)</blockquote>`, { parse_mode: "HTML" });
+    }
+  }
+
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser");
 
   const data = getUsers();
@@ -1105,13 +1123,18 @@ bot.onText(/^\/bcuser$/, async (msg) => {
 
   const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
+  // Simpan cooldown untuk premium gratisan
+  if (isFreePremium(userId)) {
+    bcuserCooldown[userId] = Date.now();
+  }
+
   let success = 0, failed = 0;
-  for (const userId of data) {
+  for (const uid of data) {
     try {
       // Kirim pesan "dari @username" di atas
-      await bot.sendMessage(userId, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
+      await bot.sendMessage(uid, `<blockquote>pesan dari ${esc(senderUsername)}</blockquote>`, { parse_mode: "HTML" });
       // Copy pesan (bukan forward) menggunakan copyMessage
-      await bot.copyMessage(userId, msg.chat.id, msg.reply_to_message.message_id);
+      await bot.copyMessage(uid, msg.chat.id, msg.reply_to_message.message_id);
       success++;
     } catch {
       failed++;
