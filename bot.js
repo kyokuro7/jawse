@@ -1094,14 +1094,37 @@ bot.onText(/\/listgroup/, (msg) => {
 });
 
 // =============================
+// Cooldown tracker untuk /bcuser (premium gratisan = 1 jam sekali)
+const bcuserCooldown = {};
+
 // Admin command: bcuser (broadcast ke SEMUA user di users.json)
 // =============================
 bot.onText(/^\/bcuser$/, async (msg) => {
-  if (!hasAccess(msg.from.id)) return;
+  const userId = msg.from.id;
+  if (!hasAccess(userId)) return;
+
+  // Cek cooldown untuk premium gratisan (1 jam)
+  if (isFreePremium(userId)) {
+    const lastUsed = bcuserCooldown[userId];
+    if (lastUsed) {
+      const elapsed = Date.now() - lastUsed;
+      const cooldownMs = 60 * 60 * 1000; // 1 jam
+      if (elapsed < cooldownMs) {
+        const sisaMenit = Math.ceil((cooldownMs - elapsed) / 60000);
+        return bot.sendMessage(msg.chat.id, `<blockquote>⏳ Kamu harus menunggu ${sisaMenit} menit lagi untuk menggunakan /bcuser.\n(Premium gratisan hanya bisa 1 jam sekali)</blockquote>`, { parse_mode: "HTML" });
+      }
+    }
+  }
+
   if (!msg.reply_to_message) return bot.sendMessage(msg.chat.id, "⚠️ Reply pesan untuk /bcuser");
 
   const data = getUsers();
   if (data.length === 0) return bot.sendMessage(msg.chat.id, "📭 Tidak ada user terdaftar.");
+
+  // Set cooldown untuk premium gratisan
+  if (isFreePremium(userId)) {
+    bcuserCooldown[userId] = Date.now();
+  }
 
   const senderUsername = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
