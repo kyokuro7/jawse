@@ -81,6 +81,7 @@ function isFreePremium(userId) {
 // Cek apakah user adalah premium yang di-add manual via /addprem (bukan dari grup)
 function isManualPremium(userId) {
   if (isOwner(userId) || isDeveloper(userId)) return true; // owner/dev selalu dianggap manual
+  if (isPermPremium(userId)) return true; // perm premium dianggap manual
   if (!isPremium(userId)) return false;
   return !isFreePremium(userId);
 }
@@ -240,7 +241,8 @@ if (!fs.existsSync(groupsDB)) fs.writeFileSync(groupsDB, JSON.stringify([]));
 // helper database
 function isPremium(userId) {
   const data = JSON.parse(fs.readFileSync(premiumDB));
-  return data.includes(userId);
+  const permData = JSON.parse(fs.readFileSync(permPremiumDB));
+  return data.includes(userId) || permData.includes(userId);
 }
 
 // Role helper functions
