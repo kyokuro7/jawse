@@ -24,6 +24,8 @@ const payDB = "./pay.json";
 if (!fs.existsSync(payDB)) fs.writeFileSync(payDB, JSON.stringify([]));
 const ownerDB = "./owners.json";
 if (!fs.existsSync(ownerDB)) fs.writeFileSync(ownerDB, JSON.stringify([]));
+const permPremiumDB = "./perm_premium.json";
+if (!fs.existsSync(permPremiumDB)) fs.writeFileSync(permPremiumDB, JSON.stringify([]));
 const blacklistDB = "./blacklist.json";
 if (!fs.existsSync(blacklistDB)) fs.writeFileSync(blacklistDB, JSON.stringify([]));
 
@@ -69,6 +71,7 @@ function isFreePremium(userId) {
 // Cek apakah user adalah premium yang di-add manual via /addprem (bukan dari grup)
 function isManualPremium(userId) {
   if (isOwner(userId) || isDeveloper(userId)) return true; // owner/dev selalu dianggap manual
+  if (isPermPremium(userId)) return true; // perm premium dianggap manual
   if (!isPremium(userId)) return false;
   return !isFreePremium(userId);
 }
@@ -206,7 +209,26 @@ if (!fs.existsSync(groupsDB)) fs.writeFileSync(groupsDB, JSON.stringify([]));
 // helper database
 function isPremium(userId) {
   const data = JSON.parse(fs.readFileSync(premiumDB));
+  const permData = JSON.parse(fs.readFileSync(permPremiumDB));
+  return data.includes(userId) || permData.includes(userId);
+}
+
+// Cek apakah user ada di database permanent premium
+function isPermPremium(userId) {
+  const data = JSON.parse(fs.readFileSync(permPremiumDB));
   return data.includes(userId);
+}
+function addPermPremium(userId) {
+  const data = JSON.parse(fs.readFileSync(permPremiumDB));
+  if (!data.includes(userId)) {
+    data.push(userId);
+    fs.writeFileSync(permPremiumDB, JSON.stringify(data, null, 2));
+  }
+}
+function removePermPremium(userId) {
+  let data = JSON.parse(fs.readFileSync(permPremiumDB));
+  data = data.filter(id => id !== userId);
+  fs.writeFileSync(permPremiumDB, JSON.stringify(data, null, 2));
 }
 
 // Role helper functions
@@ -217,8 +239,8 @@ function isOwner(userId) {
   return userId === ADMIN_ID || userId === DEVELOPER_ID || isOwnerFromDB(userId);
 }
 function hasAccess(userId) {
-  // Premium, Owner, or Developer
-  return isPremium(userId) || isOwner(userId);
+  // Premium (temp/manual), Perm Premium, Owner, or Developer
+  return isPremium(userId) || isPermPremium(userId) || isOwner(userId);
 }
 function addPremium(userId) {
   const data = JSON.parse(fs.readFileSync(premiumDB));
@@ -545,6 +567,7 @@ bot.onText(/^\/start$/, async (msg) => {
   let roleDisplay = "Free";
   if (isDeveloper(userId)) roleDisplay = "Developer";
   else if (isOwner(userId)) roleDisplay = "Owner";
+  else if (isPermPremium(userId)) roleDisplay = "Perm Premium";
   else if (isPremium(userId)) roleDisplay = "Premium";
 
   const buttons = [
@@ -632,6 +655,7 @@ bot.on("callback_query", async (query) => {
     let roleDisplayJoin = "Free";
     if (isDeveloper(userId)) roleDisplayJoin = "Developer";
     else if (isOwner(userId)) roleDisplayJoin = "Owner";
+    else if (isPermPremium(userId)) roleDisplayJoin = "Perm Premium";
     else if (isPremium(userId)) roleDisplayJoin = "Premium";
 
     const buttons = [
@@ -790,6 +814,7 @@ bot.on("callback_query", async (query) => {
     let roleDisplayBack = "Free";
     if (isDeveloper(userId)) roleDisplayBack = "Developer";
     else if (isOwner(userId)) roleDisplayBack = "Owner";
+    else if (isPermPremium(userId)) roleDisplayBack = "Perm Premium";
     else if (isPremium(userId)) roleDisplayBack = "Premium";
 
     const buttons = [
@@ -1020,8 +1045,9 @@ bot.onText(/\/listprem/, (msg) => {
   if (!isOwner(msg.from.id)) return;
   const data = JSON.parse(fs.readFileSync(premiumDB));
   const tempData = JSON.parse(fs.readFileSync(tempPremiumDB));
+  const permData = JSON.parse(fs.readFileSync(permPremiumDB));
 
-  if (data.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada user premium</blockquote>", { parse_mode: "HTML" });
+  if (data.length === 0 && permData.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada user premium</blockquote>", { parse_mode: "HTML" });
 
   let listText = "<blockquote>👤 Premium Users:</blockquote>\n";
   for (const uid of data) {
@@ -1036,6 +1062,13 @@ bot.onText(/\/listprem/, (msg) => {
     }
   }
 
+  // Tambahkan user dari perm_premium.json yang belum ada di premium.json
+  for (const uid of permData) {
+    if (!data.includes(uid)) {
+      listText += `<blockquote>• <code>${uid}</code> — Perm Premium ♾️</blockquote>\n`;
+    }
+  }
+
   bot.sendMessage(msg.chat.id, listText.trim(), { parse_mode: "HTML" });
 });
 
@@ -1047,6 +1080,41 @@ bot.onText(/\/delprem (\d+)/, (msg, match) => {
   const userId = parseInt(match[1]);
   removePremium(userId);
   bot.sendMessage(msg.chat.id, `<blockquote>🗑 User ${userId} dihapus dari Premium</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Admin command: addpermprem (Premium Permanent)
+// =============================
+bot.onText(/\/addpermprem (\d+)/, (msg, match) => {
+  if (!isOwner(msg.from.id)) return;
+  const userId = parseInt(match[1]);
+  addPermPremium(userId);
+  bot.sendMessage(msg.chat.id, `<blockquote>✅ User <code>${userId}</code> ditambahkan ke Premium Permanent</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Admin command: delpermprem
+// =============================
+bot.onText(/\/delpermprem (\d+)/, (msg, match) => {
+  if (!isOwner(msg.from.id)) return;
+  const userId = parseInt(match[1]);
+  removePermPremium(userId);
+  bot.sendMessage(msg.chat.id, `<blockquote>🗑 User <code>${userId}</code> dihapus dari Premium Permanent</blockquote>`, { parse_mode: "HTML" });
+});
+
+// =============================
+// Admin command: listpermprem
+// =============================
+bot.onText(/\/listpermprem/, (msg) => {
+  if (!isOwner(msg.from.id)) return;
+  const data = JSON.parse(fs.readFileSync(permPremiumDB));
+  if (data.length === 0) return bot.sendMessage(msg.chat.id, "<blockquote>📭 Tidak ada user Premium Permanent</blockquote>", { parse_mode: "HTML" });
+
+  let listText = "<blockquote>💎 Premium Permanent Users:</blockquote>\n";
+  for (const uid of data) {
+    listText += `<blockquote>• <code>${uid}</code> — Permanent ♾️</blockquote>\n`;
+  }
+  bot.sendMessage(msg.chat.id, listText.trim(), { parse_mode: "HTML" });
 });
 
 // =============================
